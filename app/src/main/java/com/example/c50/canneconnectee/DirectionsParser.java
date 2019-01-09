@@ -18,12 +18,15 @@ public class DirectionsParser {
     /**
      * Returns a list of lists containing latitude and longitude from a JSONObject
      */
+    private static String instruction ="";
+
     public List<List<HashMap<String, String>>> parse(JSONObject jObject) {
 
         List<List<HashMap<String, String>>> routes = new ArrayList<List<HashMap<String, String>>>();
         JSONArray jRoutes = null;
         JSONArray jLegs = null;
         JSONArray jSteps = null;
+
 
         try {
 
@@ -38,8 +41,12 @@ public class DirectionsParser {
                 for (int j = 0; j < jLegs.length(); j++) {
                     jSteps = ((JSONObject) jLegs.get(j)).getJSONArray("steps");
 
+                    //instruction = "";
                     //Loop for all steps
                     for (int k = 0; k < jSteps.length(); k++) {
+                        String instruction_brut = "";
+                        instruction_brut = (String) ((JSONObject) jSteps.get(k)).get("html_instructions");
+                        instruction = instruction + instruction_brut.replaceAll("\\<.*?>","") +"\n";
                         String polyline = "";
                         polyline = (String) ((JSONObject) ((JSONObject) jSteps.get(k)).get("polyline")).get("points");
                         List list = decodePolyline(polyline);
@@ -100,5 +107,10 @@ public class DirectionsParser {
         }
 
         return poly;
+    }
+
+    public String getInstruction(){
+        String inst= instruction;
+        return inst;
     }
 }

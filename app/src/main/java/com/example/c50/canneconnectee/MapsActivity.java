@@ -2,6 +2,7 @@ package com.example.c50.canneconnectee;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
@@ -11,6 +12,8 @@ import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.os.Bundle;
 import android.util.Log;
+import android.view.View;
+import android.widget.Button;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -51,6 +54,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     ArrayList<LatLng> listPoints;
     private FusedLocationProviderClient mFusedLocationProviderClient;
     LatLng latLng_dest;
+    private static String instruction;
 
     private GoogleApiClient mGoogleApiClient;
 
@@ -61,6 +65,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         initMap();
+
+        Button button_instruct = (Button) findViewById(R.id.button_inst);
+        button_instruct.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MapsActivity.this, InstructionActivity.class);
+                intent.putExtra("instruct", instruction);
+                startActivity(intent);
+
+            }
+        });
 
     }
 
@@ -286,6 +301,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 jsonObject = new JSONObject(strings[0]);
                 DirectionsParser directionsParser = new DirectionsParser();
                 routes = directionsParser.parse(jsonObject);
+                instruction = directionsParser.getInstruction();
+                Log.d("INSTRUCTION : ", instruction);
             } catch (JSONException e) {
                 e.printStackTrace();
             }

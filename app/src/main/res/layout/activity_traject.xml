@@ -11,7 +11,6 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:hint="Enter destination Address, City or Zip code"
-        android:textAlignment="center"
         android:id="@+id/actv"/>
 
     <Button
@@ -19,6 +18,17 @@
         android:layout_height="wrap_content"
         android:id="@+id/button_Go"
         android:text="GO"/>
+
+    <android.support.design.widget.FloatingActionButton
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom|end"
+        android:layout_margin="16dp"
+        android:id="@+id/fab"
+        app:srcCompat="@drawable/ic_mic_black_24dp"
+        />
+
+
 
 
 </LinearLayout>
