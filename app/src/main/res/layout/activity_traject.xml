@@ -13,12 +13,6 @@
         android:hint="Enter destination Address, City or Zip code"
         android:id="@+id/actv"/>
 
-    <Button
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:id="@+id/button_Go"
-        android:text="GO"/>
-
     <android.support.design.widget.FloatingActionButton
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"

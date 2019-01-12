@@ -7,10 +7,10 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.AsyncTask;
+import android.os.Bundle;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
-import android.os.Bundle;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -21,11 +21,14 @@ import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.FusedLocationProviderClient;
 import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Places;
+import com.google.android.gms.maps.CameraUpdate;
+import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -66,16 +69,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         initMap();
 
-        Button button_instruct = (Button) findViewById(R.id.button_inst);
-        button_instruct.setOnClickListener(new View.OnClickListener() {
+        Button inst = findViewById(R.id.button_inst);
+        inst.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
                 Intent intent = new Intent(MapsActivity.this, InstructionActivity.class);
                 intent.putExtra("instruct", instruction);
                 startActivity(intent);
-
             }
         });
+
 
     }
 
@@ -147,6 +150,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             String url = getRequestUrl(listPoints.get(0), listPoints.get(1));
                             TaskRequestDirections taskRequestDirections = new TaskRequestDirections();
                             taskRequestDirections.execute(url);
+
+                            LatLngBounds.Builder builder = new LatLngBounds.Builder();
+                            builder.include(listPoints.get(0));
+                            builder.include(listPoints.get(1));
+                            LatLngBounds bounds = builder.build();
+                            CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, 0);
+                            mMap.moveCamera(cu);
+                            //mMap.animateCamera(cu);
                         }
                     }
                 }

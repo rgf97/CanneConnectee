@@ -18,7 +18,7 @@ public class DirectionsParser {
     /**
      * Returns a list of lists containing latitude and longitude from a JSONObject
      */
-    private static String instruction ="";
+    private static String instruction = "";
 
     public List<List<HashMap<String, String>>> parse(JSONObject jObject) {
 
@@ -46,7 +46,7 @@ public class DirectionsParser {
                     for (int k = 0; k < jSteps.length(); k++) {
                         String instruction_brut = "";
                         instruction_brut = (String) ((JSONObject) jSteps.get(k)).get("html_instructions");
-                        instruction = instruction + instruction_brut.replaceAll("\\<.*?>","") +"\n";
+                        instruction = instruction + instruction_brut.replaceAll("\\<.*?>", "") + "\n";
                         String polyline = "";
                         polyline = (String) ((JSONObject) ((JSONObject) jSteps.get(k)).get("polyline")).get("points");
                         List list = decodePolyline(polyline);
@@ -109,8 +109,8 @@ public class DirectionsParser {
         return poly;
     }
 
-    public String getInstruction(){
-        String inst= instruction;
+    public String getInstruction() {
+        String inst = instruction;
         return inst;
     }
 }

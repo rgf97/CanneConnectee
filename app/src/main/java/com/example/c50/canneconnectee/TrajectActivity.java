@@ -6,31 +6,28 @@ import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.os.Build;
+import android.os.Bundle;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
-import android.support.design.widget.Snackbar;
+import android.support.design.widget.FloatingActionButton;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.os.Bundle;
 import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
-import android.widget.AdapterView;
 import android.widget.AutoCompleteTextView;
-import android.widget.Button;
-import android.support.design.widget.FloatingActionButton;
 import android.widget.Toast;
-
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
 import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -45,13 +42,17 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private GoogleApiClient googleApiClient;
     private static final LatLngBounds LAT_LNG_BOUNDS = new LatLngBounds(new LatLng(-40, -168), new LatLng(71, 136));
     private AutoCompleteTextView autoCompleteTextView;
-    private LatLng latLng;
+    private static final String country = "France";
     private static final String FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION;
     private static final String COURSE_LOCATION = Manifest.permission.ACCESS_COARSE_LOCATION;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1234;
     private Boolean mLocationPermissionsGranted = true;
     private TextToSpeech myTTS;
     private SpeechRecognizer mySR;
+    private static final String city = "Le Mans";
+    private static LatLng latLng;
+    private static String dest_address;
+    private String dest_address_form;
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
@@ -63,8 +64,10 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_traject);
         mySR = SpeechRecognizer.createSpeechRecognizer(this);
-        autoCompleteTextView = (AutoCompleteTextView) findViewById(R.id.actv);
-        FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
+        autoCompleteTextView = findViewById(R.id.actv);
+        dest_address = "";
+
+        FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
@@ -73,28 +76,13 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                 intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
                 intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1);
                 mySR.startListening(intent);
+
             }
         });
 
         initializeTextToSpeech();
 
         initializeSpeechRecogniser();
-
-
-        Button button_go = (Button) findViewById(R.id.button_Go);
-        button_go.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                if (mLocationPermissionsGranted) {
-
-                    //Send destination data
-                    Intent intent = new Intent(TrajectActivity.this, MapsActivity.class);
-                    intent.putExtra("latLng_dest", latLng);
-                    startActivity(intent);
-                }
-
-            }
-        });
 
         googleApiClient = new GoogleApiClient
                 .Builder(this)
@@ -106,20 +94,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         placeAutocompleteAdapter = new PlaceAutocompleteAdapter(this, googleApiClient, LAT_LNG_BOUNDS, null);
 
         autoCompleteTextView.setAdapter(placeAutocompleteAdapter);
-
-        autoCompleteTextView.setOnItemClickListener(new AdapterView.OnItemClickListener() {
-            @Override
-            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
-
-                String selection = parent.getItemAtPosition(position).toString();
-                Log.d("Selected : ", selection);
-                getLocationPermission();
-                if (mLocationPermissionsGranted) {
-                    //geolocate the destination
-                    geoLocate();
-                }
-            }
-        });
+        //autoCompleteTextView.setText(dest_address);
 
     }
 
@@ -196,10 +171,12 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
             }
             //Quelle est la date d'aujourd'hui?
             if(command.indexOf("date") != -1){
+                Log.d("", "JERENTREE ");
                 Calendar cal = Calendar.getInstance();
                 cal.setTime(date);
                 Integer day_of_month = cal.get(Calendar.DAY_OF_MONTH);
                 String[] days  = new String[] {"Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"};
+                Log.d("", "" + cal.get(Calendar.DAY_OF_WEEK));
                 String day = days[cal.get(Calendar.DAY_OF_WEEK)];
                 String[] months = new String[] {"Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Decembre"};
                 String month = months[cal.get(Calendar.MONTH)];
@@ -222,7 +199,30 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
         //Destination
         if (command.indexOf("destination") != -1){
-            speak("En route vers la destination");
+
+            dest_address = command.substring(command.indexOf(" "));
+            speak("En route vers la destination " + dest_address);
+            dest_address_form = dest_address + ", " + city + ", " + country;
+
+            autoCompleteTextView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    autoCompleteTextView.setText(dest_address_form);
+                    //autoCompleteTextView.showDropDown();
+                    getLocationPermission();
+                    if (mLocationPermissionsGranted) {
+                        //geolocate the destination
+                        geoLocate();
+                        //Send destination data
+                        Intent intent = new Intent(TrajectActivity.this, MapsActivity.class);
+                        intent.putExtra("latLng_dest", latLng);
+                        startActivity(intent);
+                    }
+
+                }
+            }, 10);
+
+
         }
 
     }
@@ -265,7 +265,6 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
             }
         });
     }
-
 
 
     private void speak(String message) {
