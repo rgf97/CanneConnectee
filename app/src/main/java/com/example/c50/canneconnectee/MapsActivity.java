@@ -197,9 +197,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         //Set value enable the sensor
         //String sensor = "sensor=false";
         //Mode for find direction
-        String mode = "mode=driving";
+        String mode = "mode=walking";
+        String language = "language=fr";
         //Build the full param
-        String param = str_org + "&" + str_dest + "&" + mode;
+        String param = str_org + "&" + str_dest + "&" + mode + "&" + language;
         //Output format
         String output = "json";
         //Create url to request

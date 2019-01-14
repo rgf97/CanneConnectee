@@ -13,16 +13,30 @@
         android:hint="Enter destination Address, City or Zip code"
         android:id="@+id/actv"/>
 
-    <android.support.design.widget.FloatingActionButton
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:id="@+id/fab"
-        app:srcCompat="@drawable/ic_mic_black_24dp"
-        />
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="200dp">
 
+    </LinearLayout>
 
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="265dp"
+        android:background="@color/colorPrimaryDark"
+        android:gravity="center">
+
+        <android.support.design.widget.FloatingActionButton
+            android:id="@+id/fab"
+            android:layout_width="200dp"
+            android:layout_height="200dp"
+            android:layout_gravity="center"
+            android:scaleType="center"
+            app:fabCustomSize="200dp"
+            app:maxImageSize="100dp"
+            app:srcCompat="@drawable/ic_mic_black_24dp"
+
+            />
+    </LinearLayout>
 
 
 </LinearLayout>

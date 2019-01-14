@@ -177,7 +177,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                 Integer day_of_month = cal.get(Calendar.DAY_OF_MONTH);
                 String[] days  = new String[] {"Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"};
                 Log.d("", "" + cal.get(Calendar.DAY_OF_WEEK));
-                String day = days[cal.get(Calendar.DAY_OF_WEEK)];
+                String day = days[cal.get(Calendar.DAY_OF_WEEK) - 1];
                 String[] months = new String[] {"Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Decembre"};
                 String month = months[cal.get(Calendar.MONTH)];
                 Integer year = cal.get(Calendar.YEAR);
