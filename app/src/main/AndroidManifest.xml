@@ -49,14 +49,6 @@
                 android:value=".TrajectActivity" />
         </activity>
 
-        <activity
-            android:name=".InstructionActivity"
-            android:label="@string/title_activity_instruction"
-            android:parentActivityName=".MapsActivity">
-            <meta-data
-                android:name="android.support.PARENT_ACTIVITY"
-                android:value=".MapsActivity" />
-        </activity>
     </application>
 
 </manifest>

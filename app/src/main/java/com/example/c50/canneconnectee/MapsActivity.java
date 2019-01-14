@@ -2,18 +2,20 @@ package com.example.c50.canneconnectee;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
-import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.location.Location;
 import android.os.AsyncTask;
+import android.os.Build;
 import android.os.Bundle;
+import android.speech.tts.TextToSpeech;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -45,6 +47,7 @@ import java.net.URL;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Created by rgf97 on 10/12/2018.
@@ -58,6 +61,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private FusedLocationProviderClient mFusedLocationProviderClient;
     LatLng latLng_dest;
     private static String instruction;
+    private TextToSpeech myTTS;
+    private TextView textView;
 
     private GoogleApiClient mGoogleApiClient;
 
@@ -68,17 +73,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         initMap();
-
-        Button inst = findViewById(R.id.button_inst);
-        inst.setOnClickListener(new View.OnClickListener() {
+        Button button = findViewById(R.id.but_dir);
+        button.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                Intent intent = new Intent(MapsActivity.this, InstructionActivity.class);
-                intent.putExtra("instruct", instruction);
-                startActivity(intent);
+                textView = findViewById(R.id.svtv);
+                textView.setText(instruction);
             }
         });
-
 
     }
 
@@ -271,6 +273,30 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         listPoints = new ArrayList<>();
     }
 
+    private void initializeTextToSpeech() {
+        myTTS = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
+            @Override
+            public void onInit(int status) {
+                if (myTTS.getEngines().size() == 0) {
+                    Toast.makeText(MapsActivity.this, "There is no TTS engine on your device", Toast.LENGTH_LONG).show();
+                    finish();
+                } else {
+                    myTTS.setLanguage(Locale.FRANCE);
+                    speak(instruction);
+                }
+            }
+        });
+    }
+
+    private void speak(String message) {
+        if (Build.VERSION.SDK_INT >= 21) {
+            myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null, null);
+        } else {
+            myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null);
+        }
+
+    }
+
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
@@ -315,6 +341,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 routes = directionsParser.parse(jsonObject);
                 instruction = directionsParser.getInstruction();
                 Log.d("INSTRUCTION : ", instruction);
+
+
+                initializeTextToSpeech();
             } catch (JSONException e) {
                 e.printStackTrace();
             }
