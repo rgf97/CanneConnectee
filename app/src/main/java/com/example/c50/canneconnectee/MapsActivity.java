@@ -2,18 +2,32 @@ package com.example.c50.canneconnectee;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.content.Context;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.drawable.Drawable;
+import android.location.Address;
+import android.location.Geocoder;
 import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
+import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.app.FragmentActivity;
+import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
+import android.view.animation.Interpolator;
+import android.view.animation.LinearInterpolator;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -28,6 +42,7 @@ import com.google.android.gms.maps.CameraUpdateFactory;
 import com.google.android.gms.maps.GoogleMap;
 import com.google.android.gms.maps.OnMapReadyCallback;
 import com.google.android.gms.maps.SupportMapFragment;
+import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
@@ -63,8 +78,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private static String instruction;
     private TextToSpeech myTTS;
     private TextView textView;
+    private LatLng latLng_org;
+    private String[] instruc_lines;
+    private Boolean isMarkerRotating;
+    private LatLng oldLocation = null;
 
     private GoogleApiClient mGoogleApiClient;
+    private LocationListener mLocationListener;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -73,6 +93,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         initMap();
+        isMarkerRotating = false;
         Button button = findViewById(R.id.but_dir);
         button.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -82,7 +103,69 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         });
 
+        //Aquire a reference to the system Location Manager
+        LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED) {
+
+            return;
+
+        }
+
+
+        final TextView live_inst = findViewById(R.id.svtv2);
+
+        // Define a listener that responds to location updates
+        LocationListener locationListener = new LocationListener() {
+
+            @Override
+            public void onLocationChanged(Location location) {
+                // Called when a new location is found by the network location provider.
+                //makeUseOfNewLocation(location);
+                getDeviceLocation();
+
+                /*Geocoder geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
+                try {
+                    List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
+                    Address obj = addresses.get(0);
+                    String add = obj.getAddressLine(0);
+                    //live_inst.setText("YOUPIIIIIIIIIIIIIIIIIIIII");
+
+                    Log.v("Real ", "Address :" + add);
+                    String[] adds2 = add.split(",");
+                    live_inst.setText(adds2[0]);
+                    speak("Vous êtes maintenant à "+adds2[0]);
+
+
+                } catch (IOException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }*/
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+            }
+        };
+
+        // Register the listener with the Location Manager to receive location updates
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 20000, 0, locationListener);
+
+
     }
+
+
 
     /**
      * Manipulates the map once available.
@@ -121,7 +204,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 public void onSuccess(Location location) {
                     if (location != null) {
 
-                        LatLng latLng_org = new LatLng(location.getLatitude(), location.getLongitude());
+                        latLng_org = new LatLng(location.getLatitude(), location.getLongitude());
                         //Reset Marker when already 2
                         if (listPoints.size() == 2) {
                             listPoints.clear();
@@ -132,62 +215,82 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         listPoints.add(latLng_org);
                         listPoints.add(latLng_dest);
 
+                        //Set my custom marker icon
+
+
                         //Create Marker
-                        MarkerOptions markerOptions = new MarkerOptions();
-                        markerOptions.position(latLng_org);
-                        markerOptions.position(latLng_dest);
+                        MarkerOptions markerOptions_1 = new MarkerOptions();
+                        MarkerOptions markerOptions_2 = new MarkerOptions();
 
-                        if (listPoints.size() == 1) {
-                            //Add first Marker to the map
-                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
-                        } else {
+                        markerOptions_1.position(latLng_org).title("device_marker");
+                        markerOptions_2.position(latLng_dest).title("dest_marker");
+
+                        //Set up oriented marker
+                        if (oldLocation != null) {
+                            float bearing = (float) bearingBetweenLocations(oldLocation, latLng_org);
+                            rotateMarker(markerOptions_1, bearing);
+                        }
+
+                        oldLocation = latLng_org;
+
+
+                        //Si l'utilisateur n'est pas à destination
+                        if (latLng_dest != latLng_org) {
+
+                            //Add first marker to the map
+                            markerOptions_1.icon(bitmapDescriptorFromVector(MapsActivity.this, R.drawable.ic_navigation_black_24dp));
+
                             //Add second Marker to the map
-                            markerOptions.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
-                        }
-                        mMap.addMarker(markerOptions);
+                            markerOptions_2.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
 
-                        //Direction Code
-                        if (listPoints.size() == 2) {
-                            //Create the url to get the request from first marker to second marker
-                            String url = getRequestUrl(listPoints.get(0), listPoints.get(1));
-                            TaskRequestDirections taskRequestDirections = new TaskRequestDirections();
-                            taskRequestDirections.execute(url);
+                            mMap.addMarker(markerOptions_1);
+                            mMap.addMarker(markerOptions_2);
 
-                            LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                            builder.include(listPoints.get(0));
-                            builder.include(listPoints.get(1));
-                            LatLngBounds bounds = builder.build();
-                            CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, 0);
-                            mMap.moveCamera(cu);
-                            //mMap.animateCamera(cu);
+
+                            //Direction Code
+                            if (listPoints.size() == 2) {
+                                //Create the url to get the request from first marker to second marker
+                                String url = getRequestUrl(listPoints.get(0), listPoints.get(1));
+                                TaskRequestDirections taskRequestDirections = new TaskRequestDirections();
+                                taskRequestDirections.execute(url);
+
+                                LatLngBounds.Builder builder = new LatLngBounds.Builder();
+                                builder.include(listPoints.get(0));
+                                builder.include(listPoints.get(1));
+                                LatLngBounds bounds = builder.build();
+                                CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, 0);
+                                mMap.moveCamera(cu);
+                                //mMap.animateCamera(cu);
+                            }
                         }
+
+                        //Si l'utilisateur est déjà à destination
+                        else {
+                            speak("Vous êtes déjà à destination.");
+                        }
+
                     }
                 }
             });
 
-            /*location.addOnCompleteListener(new OnCompleteListener() {
 
-                @Override
-                public void onComplete(@NonNull Task task) {
-                    if(task.isSuccessful()){
-
-                        Log.d("","onComplete: found location!");
-                        Location currentLocation = (Location) task.getResult();
-                        latLng = new LatLng(currentLocation.getLatitude(), currentLocation.getLongitude());
-                        Log.d("YOP", latLng.toString());
-
-                    }else{
-
-                        Log.d("", "onComplete: current location is null");
-                        Toast.makeText(MapsActivity.this, "unable to get current location", Toast.LENGTH_SHORT).show();
-                    }
-                }
-            });*/
 
         } catch (SecurityException e) {
 
             Log.e("", "getDeviceLocation: SecurityException: " + e.getMessage());
         }
+    }
+
+    private BitmapDescriptor bitmapDescriptorFromVector(Context context, @DrawableRes int vectorDrawableResourceId) {
+        Drawable background = ContextCompat.getDrawable(context, R.drawable.ic_navigation_black_24dp);
+        background.setBounds(0, 0, background.getIntrinsicWidth(), background.getIntrinsicHeight());
+        Drawable vectorDrawable = ContextCompat.getDrawable(context, vectorDrawableResourceId);
+        vectorDrawable.setBounds(40, 20, vectorDrawable.getIntrinsicWidth() + 40, vectorDrawable.getIntrinsicHeight() + 20);
+        Bitmap bitmap = Bitmap.createBitmap(background.getIntrinsicWidth(), background.getIntrinsicHeight(), Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(bitmap);
+        background.draw(canvas);
+        vectorDrawable.draw(canvas);
+        return BitmapDescriptorFactory.fromBitmap(bitmap);
     }
 
     private String getRequestUrl(LatLng origin, LatLng dest) {
@@ -277,15 +380,50 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         myTTS = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
+
                 if (myTTS.getEngines().size() == 0) {
                     Toast.makeText(MapsActivity.this, "There is no TTS engine on your device", Toast.LENGTH_LONG).show();
                     finish();
                 } else {
                     myTTS.setLanguage(Locale.FRANCE);
-                    speak(instruction);
+                    String add = "";
+
+                    //Get present location
+                    Geocoder geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
+                    try {
+                        List<Address> addresses = geocoder.getFromLocation(latLng_org.latitude, latLng_org.longitude, 1);
+                        Address obj = addresses.get(0);
+                        add = obj.getAddressLine(0);
+                        /*add = add + "\n" + obj.getCountryName();
+                        add = add + "\n" + obj.getCountryCode();
+                        add = add + "\n" + obj.getAdminArea();
+                        add = add + "\n" + obj.getPostalCode();
+                        add = add + "\n" + obj.getSubAdminArea();
+                        add = add + "\n" + obj.getLocality();
+                        add = add + "\n" + obj.getSubThoroughfare();*/
+
+                        Log.v("New ", "Address :" + add);
+
+
+                    } catch (IOException e) {
+                        // TODO Auto-generated catch block
+                        e.printStackTrace();
+                    }
+
+                    String[] adds = add.split(",");
+                    instruc_lines = instruction.split("\\r?\\n");
+                    speak("Vous êtes actuellement à " + adds[0] + ". " + instruc_lines[0]);
+
                 }
             }
+
         });
+    }
+
+    @Override
+    protected void onPause() {
+        super.onPause();
+        myTTS.shutdown();
     }
 
     private void speak(String message) {
@@ -301,6 +439,69 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
     }
+
+    /*
+     ***Step by Step direction
+     */
+    //Get user orientation between 2 locations
+    private double bearingBetweenLocations(LatLng latLng1, LatLng latLng2) {
+
+        double PI = 3.14159;
+        double lat1 = latLng1.latitude * PI / 180;
+        double long1 = latLng1.longitude * PI / 180;
+        double lat2 = latLng2.latitude * PI / 180;
+        double long2 = latLng2.longitude * PI / 180;
+
+        double dLon = (long2 - long1);
+
+        double y = Math.sin(dLon) * Math.cos(lat2);
+        double x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1)
+                * Math.cos(lat2) * Math.cos(dLon);
+
+        double brng = Math.atan2(y, x);
+
+        brng = Math.toDegrees(brng);
+        brng = (brng + 360) % 360;
+
+        return brng;
+    }
+
+    //Rotate marker function of user orientation
+    private void rotateMarker(final MarkerOptions marker, final float toRotation) {
+        if (!isMarkerRotating) {
+            final Handler handler = new Handler();
+            final long start = SystemClock.uptimeMillis();
+            final float startRotation = marker.getRotation();
+            final long duration = 2000;
+
+            final Interpolator interpolator = new LinearInterpolator();
+
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    isMarkerRotating = true;
+
+                    long elapsed = SystemClock.uptimeMillis() - start;
+                    float t = interpolator.getInterpolation((float) elapsed / duration);
+
+                    float rot = t * toRotation + (1 - t) * startRotation;
+
+                    float bearing = -rot > 180 ? rot / 2 : rot;
+
+                    marker.rotation(bearing);
+
+                    if (t < 1.0) {
+                        // Post again 16ms later.
+                        handler.postDelayed(this, 16);
+                    } else {
+                        isMarkerRotating = false;
+                    }
+                }
+            });
+        }
+    }
+
+
 
 
     public class TaskRequestDirections extends AsyncTask<String, Void, String> {
@@ -342,8 +543,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 instruction = directionsParser.getInstruction();
                 Log.d("INSTRUCTION : ", instruction);
 
-
                 initializeTextToSpeech();
+
             } catch (JSONException e) {
                 e.printStackTrace();
             }

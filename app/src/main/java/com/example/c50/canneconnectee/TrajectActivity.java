@@ -1,6 +1,9 @@
 package com.example.c50.canneconnectee;
 
 import android.Manifest;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
@@ -20,6 +23,7 @@ import android.text.format.DateUtils;
 import android.util.Log;
 import android.view.View;
 import android.widget.AutoCompleteTextView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
@@ -34,6 +38,8 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 
 
 public class TrajectActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
@@ -53,6 +59,13 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private static LatLng latLng;
     private static String dest_address;
     private String dest_address_form;
+    private static final UUID myUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    private BluetoothAdapter bluetoothAdapter = null;
+    private BluetoothSocket bluetoothSocket = null;
+    private Set<BluetoothDevice> pairedDevice;
+    private TextView blue_tv;
+    private String blue_address = null;
+    private String blue_name = null;
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
@@ -66,6 +79,11 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         mySR = SpeechRecognizer.createSpeechRecognizer(this);
         autoCompleteTextView = findViewById(R.id.actv);
         dest_address = "";
+
+        try {
+            setw();
+        } catch (Exception e) {
+        }
 
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -231,7 +249,9 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     protected void onPause() {
         super.onPause();
         myTTS.shutdown();
+        mySR.stopListening();
     }
+
 
     private void getLocationPermission() {
 
@@ -270,11 +290,18 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private void speak(String message) {
         if (Build.VERSION.SDK_INT >= 21){
             myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null, null);
+            while (myTTS.isSpeaking()) {
+
+            }
         }else{
             myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null);
+            while (myTTS.isSpeaking()) {
+
+            }
         }
 
     }
+
 
     private void geoLocate() {
 
@@ -300,5 +327,53 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         }
 
     }
+
+    /*
+     **Android Bluetooth connexion part
+     */
+    private void setw() throws IOException {
+
+        blue_tv = findViewById(R.id.blue_tv);
+        bluetoothConnectDevice();
+
+    }
+
+    private void bluetoothConnectDevice() throws IOException {
+
+        try {
+            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            blue_address = bluetoothAdapter.getAddress();
+            pairedDevice = bluetoothAdapter.getBondedDevices();
+            if (pairedDevice.size() > 0) {
+                for (BluetoothDevice bt : pairedDevice) {
+                    blue_address = bt.getAddress();
+                    blue_name = bt.getName();
+                    Toast.makeText(getApplicationContext(), "Cane Connected", Toast.LENGTH_SHORT).show();
+
+                }
+            }
+        } catch (Exception e) {
+        }
+
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter(); //get mobile bluetooth device
+        BluetoothDevice bd = bluetoothAdapter.getRemoteDevice(blue_address);//connect to the device
+        bluetoothSocket = bd.createInsecureRfcommSocketToServiceRecord(myUUID); //create a RFCOM (SPP) connexion
+        bluetoothSocket.connect();
+        try {
+            blue_tv.setText("Bluetooth Name" + blue_name + "\nBluetooth Adress" + blue_address);
+        } catch (Exception e) {
+        }
+
+    }
+
+
+
+
+
+
+
+
+
+
 
 }
