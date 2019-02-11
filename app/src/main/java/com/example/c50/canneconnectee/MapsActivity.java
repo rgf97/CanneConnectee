@@ -45,7 +45,6 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
-import com.google.android.gms.maps.model.LatLngBounds;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -70,7 +69,7 @@ import java.util.Locale;
 
 public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleApiClient.OnConnectionFailedListener {
 
-    private GoogleMap mMap;
+    private GoogleMap mMap = null;
     private static final int LOCATION_REQUEST = 500;
     ArrayList<LatLng> listPoints;
     private FusedLocationProviderClient mFusedLocationProviderClient;
@@ -81,7 +80,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private LatLng latLng_org;
     private String[] instruc_lines;
     private Boolean isMarkerRotating;
-    private LatLng oldLocation = null;
+    private Location oldLocation = null;
+    private float bearing;
 
     private GoogleApiClient mGoogleApiClient;
     private LocationListener mLocationListener;
@@ -125,25 +125,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onLocationChanged(Location location) {
                 // Called when a new location is found by the network location provider.
                 //makeUseOfNewLocation(location);
-                getDeviceLocation();
-
-                /*Geocoder geocoder = new Geocoder(MapsActivity.this, Locale.getDefault());
-                try {
-                    List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
-                    Address obj = addresses.get(0);
-                    String add = obj.getAddressLine(0);
-                    //live_inst.setText("YOUPIIIIIIIIIIIIIIIIIIIII");
-
-                    Log.v("Real ", "Address :" + add);
-                    String[] adds2 = add.split(",");
-                    live_inst.setText(adds2[0]);
-                    speak("Vous êtes maintenant à "+adds2[0]);
-
-
-                } catch (IOException e) {
-                    // TODO Auto-generated catch block
-                    e.printStackTrace();
-                }*/
+                updateDeviceLocation(location);
             }
 
             @Override
@@ -160,7 +142,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         };
 
         // Register the listener with the Location Manager to receive location updates
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 20000, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1, 0, locationListener);
 
 
     }
@@ -225,20 +207,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         markerOptions_1.position(latLng_org).title("device_marker");
                         markerOptions_2.position(latLng_dest).title("dest_marker");
 
-                        //Set up oriented marker
-                        if (oldLocation != null) {
-                            float bearing = (float) bearingBetweenLocations(oldLocation, latLng_org);
-                            rotateMarker(markerOptions_1, bearing);
-                        }
-
-                        oldLocation = latLng_org;
-
-
                         //Si l'utilisateur n'est pas à destination
                         if (latLng_dest != latLng_org) {
 
                             //Add first marker to the map
-                            markerOptions_1.icon(bitmapDescriptorFromVector(MapsActivity.this, R.drawable.ic_navigation_black_24dp));
+                            markerOptions_1.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_GREEN));
 
                             //Add second Marker to the map
                             markerOptions_2.icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_RED));
@@ -254,11 +227,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                                 TaskRequestDirections taskRequestDirections = new TaskRequestDirections();
                                 taskRequestDirections.execute(url);
 
-                                LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                                builder.include(listPoints.get(0));
-                                builder.include(listPoints.get(1));
-                                LatLngBounds bounds = builder.build();
-                                CameraUpdate cu = CameraUpdateFactory.newLatLngBounds(bounds, 0);
+                                //LatLngBounds.Builder builder = new LatLngBounds.Builder();
+                                //builder.include(listPoints.get(0));
+                                //builder.include(listPoints.get(1));
+                                //LatLngBounds bounds = builder.build();
+                                CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(listPoints.get(0), 15);
                                 mMap.moveCamera(cu);
                                 //mMap.animateCamera(cu);
                             }
@@ -279,6 +252,29 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
             Log.e("", "getDeviceLocation: SecurityException: " + e.getMessage());
         }
+    }
+
+    private void updateDeviceLocation(Location location) {
+
+        if (location != null) {
+            //Set up oriented marker
+            if (oldLocation != null) {
+                bearing = oldLocation.bearingTo(location);
+
+            } else {
+                bearing = location.bearingTo(location);
+            }
+
+            oldLocation = location;
+            MarkerOptions markerOptions = new MarkerOptions();
+            LatLng upLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+            markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this, R.drawable.ic_navigation_black_24dp)).rotation(bearing);
+            Log.d("", "updateDeviceLocation: MAP IS NOT NULL");
+            mMap.addMarker(markerOptions);
+            CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(upLatLng, 15);
+            mMap.moveCamera(cu);
+        }
+
     }
 
     private BitmapDescriptor bitmapDescriptorFromVector(Context context, @DrawableRes int vectorDrawableResourceId) {
@@ -443,28 +439,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     /*
      ***Step by Step direction
      */
-    //Get user orientation between 2 locations
-    private double bearingBetweenLocations(LatLng latLng1, LatLng latLng2) {
-
-        double PI = 3.14159;
-        double lat1 = latLng1.latitude * PI / 180;
-        double long1 = latLng1.longitude * PI / 180;
-        double lat2 = latLng2.latitude * PI / 180;
-        double long2 = latLng2.longitude * PI / 180;
-
-        double dLon = (long2 - long1);
-
-        double y = Math.sin(dLon) * Math.cos(lat2);
-        double x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1)
-                * Math.cos(lat2) * Math.cos(dLon);
-
-        double brng = Math.atan2(y, x);
-
-        brng = Math.toDegrees(brng);
-        brng = (brng + 360) % 360;
-
-        return brng;
-    }
 
     //Rotate marker function of user orientation
     private void rotateMarker(final MarkerOptions marker, final float toRotation) {
