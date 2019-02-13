@@ -33,11 +33,13 @@ import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.List;
 import java.util.Locale;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -66,6 +68,8 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private TextView blue_tv;
     private String blue_address = null;
     private String blue_name = null;
+    private ArrayList<String> joke_list;
+    private ArrayList<String> proverb_list;
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
@@ -78,6 +82,8 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         setContentView(R.layout.activity_traject);
         mySR = SpeechRecognizer.createSpeechRecognizer(this);
         autoCompleteTextView = findViewById(R.id.actv);
+        addJoke();
+        addProverb();
         dest_address = "";
 
         try {
@@ -210,9 +216,16 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         if (command.indexOf("raconte") != -1){
             //Raconte moi une blague
             if (command.indexOf("blague") != -1){
-                speak("Qu'est ce qui est jaune et qui attend? Jonathan." );
+                int joke_lenght = joke_list.size();
+                int joke_num = new Random().nextInt(joke_lenght - 1);
+                speak(joke_list.get(joke_num));
             }
-            //Raconte moi une histoire
+            //Raconte moi un proverbe
+            if (command.indexOf("proverbe") != -1) {
+                int proverb_lenght = proverb_list.size();
+                int proverb_num = new Random().nextInt(proverb_lenght - 1);
+                speak(proverb_list.get(proverb_num));
+            }
         }
 
         //Destination
@@ -328,6 +341,66 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
     }
 
+    private void addJoke() {
+        joke_list = new ArrayList<>();
+        joke_list.add("Comment appelle-t-on un lapin sourd ? laaaapin");
+        joke_list.add("Que demande un douanier à un cochon qui passe la frontière ? Son passe-porc.");
+        joke_list.add("Que crie un escargot sur le dos d'une tortue ? Youhooooooouuuuuuu !");
+        joke_list.add("Quelle est la puissance d´un coton-tige ? 2 ouates");
+        joke_list.add("Qu'est-ce qui peut être servi mais jamais mangé ? Une balle de tennis.");
+        joke_list.add("Qu'est ce qui est jaune et qui attend ? Jonathan.");
+        joke_list.add("Un chameau dit à un dromadaire : - Comment ça va ? - Bien. Je bosse. Et toi ? - Je bosse, je bosse !");
+        joke_list.add("Pourquoi les lapins jouent-ils avec 46 cartes au lieu de 52 ? Parce qu'ils ont mangé les trèfles !");
+        joke_list.add("Une jeune fille se plaint à son amie : - À tous nos rendez-vous, il m'offre des fleurs fanées. - Eh bien, essaye d'arriver à l'heure...");
+        joke_list.add("Quel est le comble pour un Geek ? Etre privé de sortie...");
+        joke_list.add("Quelle heure est-il lorsqu’un éléphant s’assied sur une clôture ? L’heure de la changer !");
+        joke_list.add("Quel est le comble pour un mathématicien ? Se faire voler sa moitié par un tiers dans un car.");
+        joke_list.add("Pourquoi les plongeurs plongent-ils en arrière ? Parce que sinon ils tomberaient dans le bateau.");
+        joke_list.add("Deux poissons croisent une étoile de mer : \"Attention, voilà le shérif !\"");
+        joke_list.add("Quel animal a trois bosses ? Un chameau qui s'est cogné.");
+        joke_list.add("Un coq rentre au poulailler avec un oeuf d’autruche : \"Mesdames, je ne voudrais pas vous vexer mais regardez ce que produit la concurrence…\"");
+        joke_list.add("2 geeks discutent le 2 janvier : \"Quelle est ta résolution cette année ?\" \"1280 x 768\".");
+        joke_list.add("Pourquoi les aiguilles sont-elles moins intelligentes que les épingles ? Parce qu'elles n'ont pas de tête.");
+        joke_list.add("Quel est le numéro de téléphone de la poule ? \"4 4 4 7 1 9 !\"");
+        joke_list.add("Quel est le fruit que les poissons détestent ? La pêche.");
+        joke_list.add("Un vrai geek, c’est celui qui croit que, dans 1 km, il y a 1 024 mètres.");
+        joke_list.add("Que s'est-il passé en 1 111 ? L'invasion des Uns !");
+        joke_list.add("Quel est l'animal qui n'a jamais soif ? Le zébu, car quand zébu z'ai plus soif !");
+        joke_list.add("Comment appelle-t-on un ascenseur en Chine ? En appuyant sur le bouton...");
+        joke_list.add("Un 0 rencontre un 8 : \"Eh ! Elle est chouette ta ceinture !\"");
+        joke_list.add("Une femme discute avec une amie :\n" + "– « J’ai un mari en or. »\n" + "L’autre lui répond :\n" + "« Moi, le mien, il est en taule. »");
+        joke_list.add("Docteur, je perd la mémoire, que dois-je faire ? Commencez déjà par me payer");
+        joke_list.add("Comment est-ce que la chouette sait que son mari fait la gueule ? Parce qu’hiboude");
+        joke_list.add("Pourquoi est-ce qu'on met tous les crocos en prison ? Parce que les crocos dil.");
+        joke_list.add("Quel est le bar préféré des espagnols ? Le Bar-celone");
+        joke_list.add("D'où viennent les gens les plus dangereux ? D’Angers");
+        joke_list.add("Quelle est la fée que les enfants détestent ? La fée C");
+        joke_list.add("Toto, quelle planète vient après Mars ? Avril");
+        joke_list.add("Tu as passé une bonne nuit, Toto ? Je ne sais pas, j'ai dormi tout le temps");
+        joke_list.add("Qu'est ce que c'est cette page blanche, Toto ? Une page de calcul mentale");
+        joke_list.add("Toto, tu devrais tout de même essayer d'écrire plus lisiblement. Ah ben, sûrement pas ! Un jour j'ai essayé et la maîtresse s'est aperçue que je faisais des fautes d'orthographes...");
+        joke_list.add("[Dans une salle d'accouchement]. Mais où est le cordon ombilical ??!! C'est une génération Wifi, sans fil !");
+        joke_list.add("Pourquoi tu fais cette grimace ? Pour faire peur aux ours. Il y en a pas ici ! Tu vois ça marche !");
+        joke_list.add("Tu connais la blague de la chaise? Elle est pliante");
+        joke_list.add("Quelle est la seule et unique différence entre un séducteur et un violeur ? La Patience…");
+
+    }
+
+    private void addProverb() {
+        proverb_list = new ArrayList<>();
+        proverb_list.add("\"On a deux vies. La deuxième commence le jour où l'on réalise qu'on n'en a juste une.\" Confucius");
+        proverb_list.add("\"Tout le monde peut être important car tout le monde peut servir à quelque chose.\" Martin Luther King");
+        proverb_list.add("\"Le véritable voyage de découverte ne consiste pas à chercher de nouveaux paysages, mais à avoir de nouveaux yeux.\" Marcel Proust");
+        proverb_list.add("\"Le plus sage des hommes chérit la bêtise de temps à autre.\" Roald Dahl");
+        proverb_list.add("\"L’avenir à chaque instant presse le présent d’être un souvenir.\" Louis Aragon");
+        proverb_list.add("\"Je suis un lutteur et un gagneur. Je refais cent fois et j'apprends tous les jours quelque chose de nouveau.\" Yves Saint Laurent");
+        proverb_list.add("\"Le bonheur est la plus grande des conquêtes, celle qu'on fait contre le destin qui nous est imposé.\" Albert Camus");
+    }
+
+
+
+
+
     /*
      **Android Bluetooth connexion part
      */
@@ -337,6 +410,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         bluetoothConnectDevice();
 
     }
+
 
     private void bluetoothConnectDevice() throws IOException {
 
@@ -360,20 +434,30 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         bluetoothSocket = bd.createInsecureRfcommSocketToServiceRecord(myUUID); //create a RFCOM (SPP) connexion
         bluetoothSocket.connect();
         try {
-            blue_tv.setText("Bluetooth Name" + blue_name + "\nBluetooth Adress" + blue_address);
+            blue_tv.setText("Bluetooth Name : " + blue_name + "\nBluetooth Adress : " + blue_address);
         } catch (Exception e) {
         }
 
+        /*
+        read data sended
+         */
+        InputStream inputStream = bluetoothSocket.getInputStream();
+        byte[] buffer = new byte[256];
+        int bytes;
+        // Keep looping to listen for received messages
+
+        try {
+            bytes = inputStream.read(buffer);            //read bytes from input buffer
+            String readMessage = new String(buffer, 0, bytes);
+            // Send the obtained bytes to the UI Activity via handler
+            Log.i("logging", readMessage + "");
+            blue_tv.setText(readMessage);
+        } catch (IOException e) {
+
+        }
+
+
     }
-
-
-
-
-
-
-
-
-
 
 
 }
