@@ -3,11 +3,16 @@ package com.example.c50.canneconnectee;
 import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
 import android.graphics.drawable.Drawable;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
@@ -16,8 +21,6 @@ import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.SystemClock;
 import android.speech.tts.TextToSpeech;
 import android.support.annotation.DrawableRes;
 import android.support.annotation.NonNull;
@@ -26,8 +29,6 @@ import android.support.v4.app.FragmentActivity;
 import android.support.v4.content.ContextCompat;
 import android.util.Log;
 import android.view.View;
-import android.view.animation.Interpolator;
-import android.view.animation.LinearInterpolator;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -45,6 +46,7 @@ import com.google.android.gms.maps.SupportMapFragment;
 import com.google.android.gms.maps.model.BitmapDescriptor;
 import com.google.android.gms.maps.model.BitmapDescriptorFactory;
 import com.google.android.gms.maps.model.LatLng;
+import com.google.android.gms.maps.model.Marker;
 import com.google.android.gms.maps.model.MarkerOptions;
 import com.google.android.gms.maps.model.PolylineOptions;
 import com.google.android.gms.tasks.OnSuccessListener;
@@ -67,9 +69,9 @@ import java.util.Locale;
  * Created by rgf97 on 10/12/2018.
  */
 
-public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, GoogleApiClient.OnConnectionFailedListener {
+public class MapsActivity extends FragmentActivity implements OnMapReadyCallback, SensorEventListener, GoogleApiClient.OnConnectionFailedListener {
 
-    private GoogleMap mMap = null;
+    private static final int SENSOR_DELAY = 500 * 1000; // 500ms
     private static final int LOCATION_REQUEST = 500;
     ArrayList<LatLng> listPoints;
     private FusedLocationProviderClient mFusedLocationProviderClient;
@@ -82,6 +84,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private Boolean isMarkerRotating;
     private Location oldLocation = null;
     private float bearing;
+    private static final int FROM_RADS_TO_DEGS = -57;
+    private GoogleMap mMap;
+    private MarkerOptions markerOptions;
+    private Marker temp_marker;
+    private SensorManager mSensorManager;
+    private Sensor mRotationSensor;
+    private float azimuth;
+    private boolean save = false;
+
+
 
     private GoogleApiClient mGoogleApiClient;
     private LocationListener mLocationListener;
@@ -90,10 +102,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_maps);
+        setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         initMap();
-        isMarkerRotating = false;
+        markerOptions = new MarkerOptions().icon(bitmapDescriptorFromVector(MapsActivity.this, R.drawable.ic_navigation_black_24dp));
         Button button = findViewById(R.id.but_dir);
         button.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -102,6 +115,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 textView.setText(instruction);
             }
         });
+
+
+        /*new Timer().scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+            }
+        },0,1);*/
 
         //Aquire a reference to the system Location Manager
         LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
@@ -140,13 +160,18 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             public void onProviderDisabled(String provider) {
             }
         };
-
         // Register the listener with the Location Manager to receive location updates
         locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1, 0, locationListener);
 
+        try {
+            mSensorManager = (SensorManager) getSystemService(MapsActivity.SENSOR_SERVICE);
+            mRotationSensor = mSensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+            mSensorManager.registerListener(this, mRotationSensor, SENSOR_DELAY);
+        } catch (Exception e) {
+            Toast.makeText(this, "Hardware compatibility issue", Toast.LENGTH_LONG).show();
+        }
 
     }
-
 
 
     /**
@@ -177,6 +202,48 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
+    @Override
+    public void onAccuracyChanged(Sensor sensor, int accuracy) {
+
+    }
+
+    @Override
+    public void onSensorChanged(SensorEvent event) {
+        if (event.sensor == mRotationSensor) {
+            if (event.values.length > 4) {
+                float[] truncatedRotationVector = new float[4];
+                System.arraycopy(event.values, 0, truncatedRotationVector, 0, 4);
+                updateSensor(truncatedRotationVector);
+            } else {
+                updateSensor(event.values);
+            }
+        }
+
+    }
+
+    private void updateSensor(float[] vectors) {
+        float[] rotationMatrix = new float[9];
+        SensorManager.getRotationMatrixFromVector(rotationMatrix, vectors);
+        int worldAxisX = SensorManager.AXIS_X;
+        int worldAxisZ = SensorManager.AXIS_Z;
+        float[] adjustedRotationMatrix = new float[9];
+        SensorManager.remapCoordinateSystem(rotationMatrix, worldAxisX, worldAxisZ, adjustedRotationMatrix);
+        float[] orientation = new float[3];
+        SensorManager.getOrientation(adjustedRotationMatrix, orientation);
+        azimuth = orientation[0] * FROM_RADS_TO_DEGS;
+        float pitch = orientation[1] * FROM_RADS_TO_DEGS;
+        float roll = orientation[2] * FROM_RADS_TO_DEGS;
+        Log.d("", "updateSensor: Pitch " + pitch);
+        Log.d("", "updateSensor: Roll " + roll);
+        Log.d("", " " + mMap);
+        ((TextView) findViewById(R.id.svtv2)).setText("Azimuth: " + azimuth + "\n" + "Pitch: " + pitch + "\n" + "Roll: " + roll);
+
+        if (save == true) {
+            temp_marker.remove();
+            temp_marker = mMap.addMarker(markerOptions.rotation(azimuth));
+        }
+    }
+
     private void getDeviceLocation() {
 
         Log.d("getDeviceLocation : ", "getting the devices current location");
@@ -204,8 +271,9 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         MarkerOptions markerOptions_1 = new MarkerOptions();
                         MarkerOptions markerOptions_2 = new MarkerOptions();
 
-                        markerOptions_1.position(latLng_org).title("device_marker");
+                        markerOptions_1.position(latLng_org).title("org_marker");
                         markerOptions_2.position(latLng_dest).title("dest_marker");
+                        markerOptions = markerOptions.position(latLng_org).title("device_marker");
 
                         //Si l'utilisateur n'est pas à destination
                         if (latLng_dest != latLng_org) {
@@ -218,6 +286,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                             mMap.addMarker(markerOptions_1);
                             mMap.addMarker(markerOptions_2);
+                            temp_marker = mMap.addMarker(markerOptions);
+                            save = true;
 
 
                             //Direction Code
@@ -254,28 +324,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         }
     }
 
+
     private void updateDeviceLocation(Location location) {
 
-        if (location != null) {
-            //Set up oriented marker
-            if (oldLocation != null) {
-                bearing = oldLocation.bearingTo(location);
-
-            } else {
-                bearing = location.bearingTo(location);
-            }
-
-            oldLocation = location;
-            MarkerOptions markerOptions = new MarkerOptions();
             LatLng upLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-            markerOptions.icon(bitmapDescriptorFromVector(MapsActivity.this, R.drawable.ic_navigation_black_24dp)).rotation(bearing);
             Log.d("", "updateDeviceLocation: MAP IS NOT NULL");
-            mMap.addMarker(markerOptions);
+        mMap.addMarker(markerOptions.position(upLatLng));
             CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(upLatLng, 15);
             mMap.moveCamera(cu);
-        }
 
     }
+
 
     private BitmapDescriptor bitmapDescriptorFromVector(Context context, @DrawableRes int vectorDrawableResourceId) {
         Drawable background = ContextCompat.getDrawable(context, R.drawable.ic_navigation_black_24dp);
@@ -439,44 +498,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     /*
      ***Step by Step direction
      */
-
-    //Rotate marker function of user orientation
-    private void rotateMarker(final MarkerOptions marker, final float toRotation) {
-        if (!isMarkerRotating) {
-            final Handler handler = new Handler();
-            final long start = SystemClock.uptimeMillis();
-            final float startRotation = marker.getRotation();
-            final long duration = 2000;
-
-            final Interpolator interpolator = new LinearInterpolator();
-
-            handler.post(new Runnable() {
-                @Override
-                public void run() {
-                    isMarkerRotating = true;
-
-                    long elapsed = SystemClock.uptimeMillis() - start;
-                    float t = interpolator.getInterpolation((float) elapsed / duration);
-
-                    float rot = t * toRotation + (1 - t) * startRotation;
-
-                    float bearing = -rot > 180 ? rot / 2 : rot;
-
-                    marker.rotation(bearing);
-
-                    if (t < 1.0) {
-                        // Post again 16ms later.
-                        handler.postDelayed(this, 16);
-                    } else {
-                        isMarkerRotating = false;
-                    }
-                }
-            });
-        }
-    }
-
-
-
 
     public class TaskRequestDirections extends AsyncTask<String, Void, String> {
 

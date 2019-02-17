@@ -446,14 +446,16 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         int bytes;
         // Keep looping to listen for received messages
 
-        try {
-            bytes = inputStream.read(buffer);            //read bytes from input buffer
-            String readMessage = new String(buffer, 0, bytes);
-            // Send the obtained bytes to the UI Activity via handler
-            Log.i("logging", readMessage + "");
-            blue_tv.setText(readMessage);
-        } catch (IOException e) {
-
+        while (true) {
+            try {
+                bytes = inputStream.read(buffer);            //read bytes from input buffer
+                String readMessage = new String(buffer, 0, bytes);
+                // Send the obtained bytes to the UI Activity via handler
+                Log.d("logging", readMessage + "");
+                blue_tv.setText(readMessage);
+            } catch (IOException e) {
+                break;
+            }
         }
 
 
