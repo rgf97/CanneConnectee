@@ -77,11 +77,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private FusedLocationProviderClient mFusedLocationProviderClient;
     LatLng latLng_dest;
     private static String instruction;
+    private static List<List<LatLng>> start_end_latLngs;
     private TextToSpeech myTTS;
     private TextView textView;
     private LatLng latLng_org;
     private String[] instruc_lines;
-    private Boolean isMarkerRotating;
     private Location oldLocation = null;
     private float bearing;
     private static final int FROM_RADS_TO_DEGS = -57;
@@ -161,7 +161,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
         };
         // Register the listener with the Location Manager to receive location updates
-        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 1, 0, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 0, 0, locationListener);
 
         try {
             mSensorManager = (SensorManager) getSystemService(MapsActivity.SENSOR_SERVICE);
@@ -231,17 +231,34 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         float[] orientation = new float[3];
         SensorManager.getOrientation(adjustedRotationMatrix, orientation);
         azimuth = orientation[0] * FROM_RADS_TO_DEGS;
+        azimuth = (azimuth + 360) % 360;
+        azimuth = 360 - azimuth;
         float pitch = orientation[1] * FROM_RADS_TO_DEGS;
         float roll = orientation[2] * FROM_RADS_TO_DEGS;
-        Log.d("", "updateSensor: Pitch " + pitch);
-        Log.d("", "updateSensor: Roll " + roll);
-        Log.d("", " " + mMap);
         ((TextView) findViewById(R.id.svtv2)).setText("Azimuth: " + azimuth + "\n" + "Pitch: " + pitch + "\n" + "Roll: " + roll);
 
         if (save == true) {
             temp_marker.remove();
             temp_marker = mMap.addMarker(markerOptions.rotation(azimuth));
         }
+    }
+
+    //Get angle betweent 2 points
+    private double angleFromCoordinate(double lat1, double long1, double lat2, double long2) {
+
+        double dLon = (long2 - long1);
+
+        double y = Math.sin(dLon) * Math.cos(lat2);
+        double x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1)
+                * Math.cos(lat2) * Math.cos(dLon);
+
+        double brng = Math.atan2(y, x);
+
+        brng = Math.toDegrees(brng);
+        brng = (brng + 360) % 360;
+        //brng = 360 - brng; // count degrees counter-clockwise - remove to make clockwise
+
+        return brng;
     }
 
     private void getDeviceLocation() {
@@ -327,12 +344,14 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void updateDeviceLocation(Location location) {
 
-            LatLng upLatLng = new LatLng(location.getLatitude(), location.getLongitude());
-            Log.d("", "updateDeviceLocation: MAP IS NOT NULL");
-        mMap.addMarker(markerOptions.position(upLatLng));
-            CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(upLatLng, 15);
-            mMap.moveCamera(cu);
-
+        LatLng upLatLng = new LatLng(location.getLatitude(), location.getLongitude());
+        Log.d("", "updateDeviceLocation: MAP IS NOT NULL");
+        if (temp_marker != null) {
+            temp_marker.remove();
+        }
+        temp_marker = mMap.addMarker(markerOptions.position(upLatLng));
+        CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(upLatLng, 15);
+        mMap.moveCamera(cu);
     }
 
 
@@ -537,6 +556,10 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 routes = directionsParser.parse(jsonObject);
                 instruction = directionsParser.getInstruction();
                 Log.d("INSTRUCTION : ", instruction);
+                start_end_latLngs = directionsParser.getStart_end_latLngs();
+                for (List<LatLng> list : start_end_latLngs) {
+                    Log.d("L", list.get(0).toString() + " " + list.get(1).toString());
+                }
 
                 initializeTextToSpeech();
 

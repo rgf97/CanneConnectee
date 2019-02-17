@@ -19,6 +19,7 @@ public class DirectionsParser {
      * Returns a list of lists containing latitude and longitude from a JSONObject
      */
     private static String instruction = "";
+    private static List<List<LatLng>> start_end_latLngs;
 
     public List<List<HashMap<String, String>>> parse(JSONObject jObject) {
 
@@ -26,7 +27,11 @@ public class DirectionsParser {
         JSONArray jRoutes = null;
         JSONArray jLegs = null;
         JSONArray jSteps = null;
-
+        JSONObject jStart_location = null;
+        JSONObject jEnd_location = null;
+        JSONObject jDuration = null;
+        JSONObject jDistance = null;
+        start_end_latLngs = new ArrayList<>();
 
         try {
 
@@ -47,6 +52,22 @@ public class DirectionsParser {
                         String instruction_brut = "";
                         instruction_brut = (String) ((JSONObject) jSteps.get(k)).get("html_instructions");
                         instruction = instruction + instruction_brut.replaceAll("\\<.*?>", "") + "\n";
+
+                        jStart_location = ((JSONObject) jSteps.get(k)).getJSONObject("start_location");
+                        Double start_lat = Double.valueOf(jStart_location.getString("lat"));
+                        Double start_lng = Double.valueOf(jStart_location.getString("lng"));
+                        LatLng start_latLng = new LatLng(start_lat, start_lng);
+
+                        jEnd_location = ((JSONObject) jSteps.get(k)).getJSONObject("end_location");
+                        Double end_lat = Double.valueOf(jEnd_location.getString("lat"));
+                        Double end_lng = Double.valueOf(jEnd_location.getString("lng"));
+                        LatLng end_latLng = new LatLng(end_lat, end_lng);
+
+                        List<LatLng> start_end_latLng = new ArrayList<>();
+                        start_end_latLng.add(start_latLng);
+                        start_end_latLng.add(end_latLng);
+                        start_end_latLngs.add(start_end_latLng);
+
                         String polyline = "";
                         polyline = (String) ((JSONObject) ((JSONObject) jSteps.get(k)).get("polyline")).get("points");
                         List list = decodePolyline(polyline);
@@ -113,4 +134,10 @@ public class DirectionsParser {
         String inst = instruction;
         return inst;
     }
+
+    public List<List<LatLng>> getStart_end_latLngs() {
+        List<List<LatLng>> ll = start_end_latLngs;
+        return ll;
+    }
+
 }
