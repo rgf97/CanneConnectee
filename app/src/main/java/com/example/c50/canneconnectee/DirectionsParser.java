@@ -20,17 +20,19 @@ public class DirectionsParser {
      */
     private static String instruction = "";
     private static List<List<LatLng>> start_end_latLngs;
+    private  static String duration;
+    private  static String distance;
 
     public List<List<HashMap<String, String>>> parse(JSONObject jObject) {
 
-        List<List<HashMap<String, String>>> routes = new ArrayList<List<HashMap<String, String>>>();
-        JSONArray jRoutes = null;
-        JSONArray jLegs = null;
-        JSONArray jSteps = null;
-        JSONObject jStart_location = null;
-        JSONObject jEnd_location = null;
-        JSONObject jDuration = null;
-        JSONObject jDistance = null;
+        List<List<HashMap<String, String>>> routes = new ArrayList<>();
+        JSONArray jRoutes;
+        JSONArray jLegs;
+        JSONArray jSteps;
+        JSONObject jStart_location;
+        JSONObject jEnd_location;
+        JSONObject jDuration;
+        JSONObject jDistance;
         start_end_latLngs = new ArrayList<>();
 
         try {
@@ -46,10 +48,16 @@ public class DirectionsParser {
                 for (int j = 0; j < jLegs.length(); j++) {
                     jSteps = ((JSONObject) jLegs.get(j)).getJSONArray("steps");
 
+                    jDistance = ((JSONObject) jLegs.get(j)).getJSONObject("distance");
+                    distance = jDistance.getString("text");
+
+                    jDuration = ((JSONObject) jLegs.get(j)).getJSONObject("duration");
+                    duration = jDuration.getString("text");
+
                     //instruction = "";
                     //Loop for all steps
                     for (int k = 0; k < jSteps.length(); k++) {
-                        String instruction_brut = "";
+                        String instruction_brut;
                         instruction_brut = (String) ((JSONObject) jSteps.get(k)).get("html_instructions");
                         instruction = instruction + instruction_brut.replaceAll("\\<.*?>", "") + "\n";
 
@@ -68,13 +76,13 @@ public class DirectionsParser {
                         start_end_latLng.add(end_latLng);
                         start_end_latLngs.add(start_end_latLng);
 
-                        String polyline = "";
+                        String polyline;
                         polyline = (String) ((JSONObject) ((JSONObject) jSteps.get(k)).get("polyline")).get("points");
                         List list = decodePolyline(polyline);
 
                         //Loop for all points
                         for (int l = 0; l < list.size(); l++) {
-                            HashMap<String, String> hm = new HashMap<String, String>();
+                            HashMap<String, String> hm = new HashMap<>();
                             hm.put("lat", Double.toString(((LatLng) list.get(l)).latitude));
                             hm.put("lon", Double.toString(((LatLng) list.get(l)).longitude));
                             path.add(hm);
@@ -87,6 +95,7 @@ public class DirectionsParser {
         } catch (JSONException e) {
             e.printStackTrace();
         } catch (Exception e) {
+            e.printStackTrace();
         }
 
         return routes;
@@ -131,13 +140,20 @@ public class DirectionsParser {
     }
 
     public String getInstruction() {
-        String inst = instruction;
-        return inst;
+        return instruction;
     }
 
     public List<List<LatLng>> getStart_end_latLngs() {
         List<List<LatLng>> ll = start_end_latLngs;
         return ll;
+    }
+
+    public String getDuration(){
+        return duration;
+    }
+
+    public String getDistance(){
+        return distance;
     }
 
 }

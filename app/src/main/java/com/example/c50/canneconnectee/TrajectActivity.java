@@ -8,6 +8,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
+import android.location.Location;
 import android.os.Build;
 import android.os.Bundle;
 import android.speech.RecognitionListener;
@@ -28,9 +29,12 @@ import android.widget.Toast;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.api.GoogleApiClient;
+import com.google.android.gms.location.FusedLocationProviderClient;
+import com.google.android.gms.location.LocationServices;
 import com.google.android.gms.location.places.Places;
 import com.google.android.gms.maps.model.LatLng;
 import com.google.android.gms.maps.model.LatLngBounds;
+import com.google.android.gms.tasks.OnSuccessListener;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -66,10 +70,16 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private BluetoothSocket bluetoothSocket = null;
     private Set<BluetoothDevice> pairedDevice;
     private TextView blue_tv;
+    private TextView blue_tv2;
     private String blue_address = null;
     private String blue_name = null;
     private ArrayList<String> joke_list;
     private ArrayList<String> proverb_list;
+    private static Address address;
+    private static String cur_location;
+    private FusedLocationProviderClient mFusedLocationClient;
+    private String blue_status;
+
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
@@ -85,11 +95,14 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         addJoke();
         addProverb();
         dest_address = "";
-
+        mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
+        blue_status = "La canne est non connectée.";
         try {
             setw();
         } catch (Exception e) {
+            e.printStackTrace();
         }
+
 
         FloatingActionButton fab = findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -106,7 +119,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
         initializeTextToSpeech();
 
-        initializeSpeechRecogniser();
+        initializeSpeechRecogniser(); 
 
         googleApiClient = new GoogleApiClient
                 .Builder(this)
@@ -118,6 +131,8 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         placeAutocompleteAdapter = new PlaceAutocompleteAdapter(this, googleApiClient, LAT_LNG_BOUNDS, null);
 
         autoCompleteTextView.setAdapter(placeAutocompleteAdapter);
+
+
         //autoCompleteTextView.setText(dest_address);
 
     }
@@ -184,17 +199,17 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         if(command.contains("quel")){
             Log.d("JENTRE", "Quel: ");
             //Quel est ton nom?
-            if(command.indexOf("ton nom") != -1){
+            if(command.contains("ton nom") || command.contains("votre nom")){
                 Log.d("JENTRE", "ton nom: ");
                 speak("Mon nom est Alice.");
             }
             //Quelle heure est-il?
-            if(command.indexOf("heure") != -1){
+            if(command.contains("heure")){
                 String time = DateUtils.formatDateTime(this, date.getTime(), DateUtils.FORMAT_SHOW_TIME);
                 speak("Il est "+time+".");
             }
             //Quelle est la date d'aujourd'hui?
-            if(command.indexOf("date") != -1){
+            if(command.contains("date")){
                 Log.d("", "JERENTREE ");
                 Calendar cal = Calendar.getInstance();
                 cal.setTime(date);
@@ -208,20 +223,20 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                 speak("La date d'aujourd'hui est "+day+" "+day_of_month+" "+month+" "+year+".");
             }
             //Quel age ton age?
-            if(command.indexOf("âge") != -1){
+            if(command.contains("âge")){
                 speak("J'ai 20 ans.");
             }
         }
 
-        if (command.indexOf("raconte") != -1){
+        if (command.contains("raconte")){
             //Raconte moi une blague
-            if (command.indexOf("blague") != -1){
+            if (command.contains("blague")){
                 int joke_lenght = joke_list.size();
                 int joke_num = new Random().nextInt(joke_lenght - 1);
                 speak(joke_list.get(joke_num));
             }
             //Raconte moi un proverbe
-            if (command.indexOf("proverbe") != -1) {
+            if (command.contains("proverbe")) {
                 int proverb_lenght = proverb_list.size();
                 int proverb_num = new Random().nextInt(proverb_lenght - 1);
                 speak(proverb_list.get(proverb_num));
@@ -229,11 +244,16 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         }
 
         //Destination
-        if (command.indexOf("destination") != -1){
+        if (command.contains("destination")){
 
             dest_address = command.substring(command.indexOf(" "));
-            speak("En route vers la destination " + dest_address);
             dest_address_form = dest_address + ", " + city + ", " + country;
+
+            getDeviceLoc();
+
+            /*if (dest_address_form.contains(cur_location)){
+                speak("Vous êtes déjà à destination !");
+            }*/
 
             autoCompleteTextView.postDelayed(new Runnable() {
                 @Override
@@ -252,8 +272,23 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
                 }
             }, 10);
+            speak("En route vers " + dest_address);
+            while (myTTS.isSpeaking()){
 
+            }
 
+        }
+
+        if (command.contains("guide")){
+            speak("Bienvenue dans le manuel d'utilisation. L'objectif principal de cette application est de vous guider" +
+                    " dans vos déplacements, en vous conduisant à un endroit souhaité tout en vous évitant les obstacles" +
+                    " sur votre trajet. Dîtes Destination suivi de l'endroit où vous desiriez aller et le mode Navigation sera " +
+                    "activé. Puis, vous n'avez plus qu'à vous laisser guider. Vous pouvez néanmoins annuler à tout moment le mode" +
+                    " Navigation en disant Annulation ou Arrête ou Annule. A noter par ailleurs que l'application vous evite des obstacles même" +
+                    " en étant pas en mode Navigation, simplement si la canne est connectée. L'application contient également d'autres " +
+                    "fonctionnalités telles que : Quelle heure est-il? Quelle est la date d'aujourd'hui? Raconte moi un proverve, raconte moi " +
+                    "une blaque. Quel est ton nom?, Quel âge as-tu?, seulement disponibles en mode non Navigation, pour vous faire passer du bon temps. " +
+                    "A vous de jouer !");
         }
 
     }
@@ -263,6 +298,39 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         super.onPause();
         myTTS.shutdown();
         mySR.stopListening();
+    }
+
+    private void getDeviceLoc(){
+
+        Log.d("", "ICI AU MOINS WTF ");
+        try {
+            mFusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
+                @Override
+                public void onSuccess(Location location) {
+                    // Got last known location. In some rare situations this can be null.
+                    Log.d("Z", "JE RENTRE ICI KM");
+                    if (location != null) {
+
+                        Geocoder geocoder = new Geocoder(TrajectActivity.this, Locale.getDefault());
+                        try {
+                            List<Address> addresses = geocoder.getFromLocation(location.getLatitude(), location.getLongitude(), 1);
+                            Address obj = addresses.get(0);
+                            cur_location = obj.getAddressLine(0);
+                            Log.d("J", "rentreee ");
+
+                        } catch (IOException e) {
+                            // TODO Auto-generated catch block
+                            e.printStackTrace();
+                        }
+
+                    }
+                }
+            });
+        }catch (SecurityException e) {
+
+            Log.e("", "getDeviceLocation: SecurityException: " + e.getMessage());
+        }
+
     }
 
 
@@ -293,7 +361,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                     finish();
                 }else{
                     myTTS.setLanguage(Locale.FRANCE);
-                    speak("Bonjour. Je m'appelle Alice. Je suis prête.");
+                    speak("Bonjour ! Mon nom est Alice. \n"+blue_status +"\n Veillez appuyer pour parler.\n Pour obtenir de l'aide, dîtes Guide d'utilisation. ");
                 }
             }
         });
@@ -303,14 +371,8 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private void speak(String message) {
         if (Build.VERSION.SDK_INT >= 21){
             myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null, null);
-            while (myTTS.isSpeaking()) {
-
-            }
         }else{
             myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null);
-            while (myTTS.isSpeaking()) {
-
-            }
         }
 
     }
@@ -332,7 +394,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
         if (list.size() > 0) {
 
-            Address address = list.get(0);
+            address = list.get(0);
             Log.d("", "geoLocate: found a location: " + address.toString());
 
             latLng = new LatLng(address.getLatitude(), address.getLongitude());
@@ -397,20 +459,16 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         proverb_list.add("\"Le bonheur est la plus grande des conquêtes, celle qu'on fait contre le destin qui nous est imposé.\" Albert Camus");
     }
 
-
-
-
-
     /*
      **Android Bluetooth connexion part
      */
     private void setw() throws IOException {
 
         blue_tv = findViewById(R.id.blue_tv);
+        blue_tv2 = findViewById(R.id.blue_tv2);
         bluetoothConnectDevice();
 
     }
-
 
     private void bluetoothConnectDevice() throws IOException {
 
@@ -422,11 +480,13 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                 for (BluetoothDevice bt : pairedDevice) {
                     blue_address = bt.getAddress();
                     blue_name = bt.getName();
-                    Toast.makeText(getApplicationContext(), "Cane Connected", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "Cane connected", Toast.LENGTH_SHORT).show();
+                    blue_status = "La canne est connectée !";
 
                 }
             }
         } catch (Exception e) {
+            e.printStackTrace();
         }
 
         bluetoothAdapter = BluetoothAdapter.getDefaultAdapter(); //get mobile bluetooth device
@@ -452,14 +512,12 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                 String readMessage = new String(buffer, 0, bytes);
                 // Send the obtained bytes to the UI Activity via handler
                 Log.d("logging", readMessage + "");
-                blue_tv.setText(readMessage);
+                blue_tv2.setText(readMessage);
             } catch (IOException e) {
                 break;
             }
         }
 
-
     }
-
 
 }
