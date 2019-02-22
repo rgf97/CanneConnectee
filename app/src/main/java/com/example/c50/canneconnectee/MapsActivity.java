@@ -2,6 +2,9 @@ package com.example.c50.canneconnectee;
 
 import android.Manifest;
 import android.annotation.SuppressLint;
+import android.bluetooth.BluetoothAdapter;
+import android.bluetooth.BluetoothDevice;
+import android.bluetooth.BluetoothSocket;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
@@ -71,6 +74,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
+import java.util.UUID;
 
 /**
  * Created by rgf97 on 10/12/2018.
@@ -80,11 +85,13 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private static final int SENSOR_DELAY = 500 * 1000; // 500ms
     private static final int LOCATION_REQUEST = 500;
-    ArrayList<LatLng> listPoints;
-    private FusedLocationProviderClient mFusedLocationProviderClient;
-    LatLng latLng_dest;
+    private static final int FROM_RADS_TO_DEGS = -57;
+    private static final UUID myUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private static String instruction;
     private static List<List<LatLng>> start_end_latLngs;
+    ArrayList<LatLng> listPoints;
+    LatLng latLng_dest;
+    private FusedLocationProviderClient mFusedLocationProviderClient;
     private List<Double> steps_angle;
     private String distance;
     private String duration;
@@ -92,9 +99,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private TextView textView;
     private LatLng latLng_org;
     private String[] instruc_lines;
-    private Location oldLocation = null;
-    private float bearing;
-    private static final int FROM_RADS_TO_DEGS = -57;
     private GoogleMap mMap;
     private MarkerOptions boss_markerOptions;
     private Marker temp_marker;
@@ -110,8 +114,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private int counter;
     private SpeechRecognizer mySR;
     private Double device_road_angle;
-
-
+    private String live_instruction;
+    private BluetoothAdapter bluetoothAdapter = null;
+    private BluetoothSocket bluetoothSocket = null;
+    private Set<BluetoothDevice> pairedDevice;
+    private String blue_address = null;
 
 
     private GoogleApiClient mGoogleApiClient;
@@ -125,6 +132,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         mFusedLocationProviderClient = LocationServices.getFusedLocationProviderClient(this);
         // Obtain the SupportMapFragment and get notified when the map is ready to be used.
         initMap();
+        try {
+            setw();
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
         mySR = SpeechRecognizer.createSpeechRecognizer(this);
         initializeSpeechRecogniser();
         counter = 0;
@@ -180,24 +192,26 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 // Called when a new location is found by the network location provider.
                 //makeUseOfNewLocation(location);
                 updateDeviceLocation(location);
-                Log.d("LALA", "LALA ");
-                if (start_end_latLngs != null && instruc_lines !=null){
+
+                if (start_end_latLngs != null && instruc_lines != null) {
                     LatLng latLng = new LatLng(start_end_latLngs.get(counter).get(1).latitude, start_end_latLngs.get(counter).get(1).longitude);
                     Boolean b = isMarkerInsideCircle(location, latLng);
-                    Log.d("YES", "Im the best "+ start_end_latLngs.size());
-                    ((TextView) findViewById(R.id.svtv2)).setText(b.toString());
-                    if (b){
-                        if (counter < start_end_latLngs.size()-1){
-                            speak("Prochaine étape : "+instruc_lines[counter+1]);
+                    while (myTTS.isSpeaking()) {
+
+                    }
+                    speak(live_instruction);
+
+                    if (b) {
+                        if (counter < steps_angle.size() - 1) {
+                            speak("Prochaine étape : " + instruc_lines[counter + 1] + ". " + live_instruction);
                             counter++;
                             current_step_angle = steps_angle.get(counter);
-                            //((TextView) findViewById(R.id.svtv2)).setText(counter+"\n"+instruc_lines[counter+1]);
-                            Log.d("YES", "Im better ");
                         }
-                        if (counter == start_end_latLngs.size()-1){
-                            speak("Vous êtes arrivé ! Je rappelle, vous êtes arrivé !");
-                            speak("Mode Navigation terminé.");
-                            counter++;
+                        if (counter == steps_angle.size() - 1) {
+                            Log.d("JE ", "onLocationChanged: ");
+                            speak("Vous êtes arrivé ! Je rappelle, vous êtes arrivé ! Mode Navigation terminé.");
+                            while (myTTS.isSpeaking()) {
+                            }
                             startActivity(new Intent(MapsActivity.this, TrajectActivity.class));
 
                         }
@@ -220,7 +234,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         };
         // Register the listener with the Location Manager to receive location updates
         //locationManager.requestLocationUpdates(LocationManager.GPS_PROVIDER, 2000, 0, locationListener);
-        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER,2000,10, locationListener);
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 15000, 0, locationListener);
 
         try {
             mSensorManager = (SensorManager) getSystemService(MapsActivity.SENSOR_SERVICE);
@@ -286,7 +300,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
 
-
     private void updateSensor(float[] vectors) {
         float[] rotationMatrix = new float[9];
         SensorManager.getRotationMatrixFromVector(rotationMatrix, vectors);
@@ -299,20 +312,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         azimuth = orientation[0] * FROM_RADS_TO_DEGS;
         azimuth = (azimuth + 360) % 360;
         azimuth = 360 - azimuth;
-        //float pitch = orientation[1] * FROM_RADS_TO_DEGS;
-        //float roll = orientation[2] * FROM_RADS_TO_DEGS;
-        //((TextView) findViewById(R.id.svtv2)).setText("Azimuth: " + azimuth + "\n" + "Pitch: " + pitch + "\n" + "Roll: " + roll);
 
         if (save && save2 && upLatLng != null) {
             temp_marker.remove();
             device_road_angle = (azimuth - current_step_angle + 360) % 360;
-            ((TextView) findViewById(R.id.svtv2)).setText(""+device_road_angle);
+            ((TextView) findViewById(R.id.svtv2)).setText("" + device_road_angle);
 
 
             boss_markerOptions = new MarkerOptions().icon(bitmapDescriptorFromVector(MapsActivity.this, R.drawable.ic_navigation_black_24dp));
-            Log.d("ICI", "LUL "+counter+" "+current_step_angle+ " "+device_road_angle);
+            Log.d("ICI", "LUL " + counter + " " + steps_angle.size() + " " + start_end_latLngs.size());
             temp_marker = mMap.addMarker(boss_markerOptions.position(upLatLng).rotation(azimuth));
-            if (isLatLngFill){
+            if (isLatLngFill) {
                 for (List<LatLng> list : start_end_latLngs) {
                     Circle circle = mMap.addCircle(new CircleOptions().center(new LatLng(list.get(1).latitude, list.get(1).longitude)).radius(10).fillColor(Color.RED));
                     initializeTextToSpeech();
@@ -320,45 +330,24 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 }
             }
 
-            if (save1){
-                if (device_road_angle >= 315 || device_road_angle <= 45 ){
-                    Log.d("COUCOU", "CONTINUER ");
+            if (save1) {
+                if (device_road_angle >= 315 || device_road_angle <= 45) {
+                    live_instruction = "continuer";
                     ((TextView) findViewById(R.id.svtv2)).setText("CONTINUER");
-                    //speak("Continuer");
-
                 }
-
             }
-            if (device_road_angle > 45 && device_road_angle < 135 ){
-                Log.d("COUCOU", "DROITE");
-                ((TextView) findViewById(R.id.svtv2)).setText("QUART DE TOUR A DROITE");
-                //speak("Quart de tour à droite");
-
-
-            }
-            if (device_road_angle >= 135 && device_road_angle <= 225 ){
-                Log.d("COUCOU", "DEMI TOUR ");
-                ((TextView) findViewById(R.id.svtv2)).setText("DEMI TOUR");
-                //speak("Demi-tour ");
-
-
-
-            }
-            if (device_road_angle > 225 && device_road_angle < 315 ){
-                Log.d("COUCOU", "GAUCHE ");
+            if (device_road_angle > 45 && device_road_angle < 135) {
+                live_instruction = "quart de tour à gauche";
                 ((TextView) findViewById(R.id.svtv2)).setText("QUART DE TOUR A GAUCHE");
-                //speak("Quart de tour à gauche");
-
             }
-
-
-            /*new Timer().scheduleAtFixedRate(new TimerTask() {
-                @Override
-                public void run() {
-
-                }
-            },0,5000);*/
-
+            if (device_road_angle >= 135 && device_road_angle <= 225) {
+                live_instruction = "demi-tour";
+                ((TextView) findViewById(R.id.svtv2)).setText("DEMI TOUR");
+            }
+            if (device_road_angle > 225 && device_road_angle < 315) {
+                live_instruction = "quart de tour à droite";
+                ((TextView) findViewById(R.id.svtv2)).setText("QUART DE TOUR A DROITE");
+            }
 
         }
     }
@@ -420,8 +409,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                         mMap.addMarker(markerOptions_1);
                         mMap.addMarker(markerOptions_2);
                         temp_marker = mMap.addMarker(markerOptions_3);
-                        //current_step_angle = steps_angle.get(0);
-
 
 
                         //Direction Code
@@ -430,11 +417,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             String url = getRequestUrl(listPoints.get(0), listPoints.get(1));
                             TaskRequestDirections taskRequestDirections = new TaskRequestDirections();
                             taskRequestDirections.execute(url);
-
-                            //LatLngBounds.Builder builder = new LatLngBounds.Builder();
-                            //builder.include(listPoints.get(0));
-                            //builder.include(listPoints.get(1));
-                            //LatLngBounds bounds = builder.build();
                             CameraUpdate cu = CameraUpdateFactory.newLatLngZoom(listPoints.get(0), 15);
                             mMap.moveCamera(cu);
                             //mMap.animateCamera(cu);
@@ -445,7 +427,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                     }
                 }
             });
-
 
 
         } catch (SecurityException e) {
@@ -462,11 +443,11 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     }
 
-    private Boolean isMarkerInsideCircle(Location location, LatLng latLng){
+    private Boolean isMarkerInsideCircle(Location location, LatLng latLng) {
         Boolean bool = false;
         float[] dist = new float[2];
         Location.distanceBetween(location.getLatitude(), location.getLongitude(), latLng.latitude, latLng.longitude, dist);
-        if (dist[0]<=5){
+        if (dist[0] <= 5) {
             bool = true;
         }
         return bool;
@@ -486,7 +467,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     }
 
     private void initializeSpeechRecogniser() {
-        if(SpeechRecognizer.isRecognitionAvailable(this)){
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
             mySR = SpeechRecognizer.createSpeechRecognizer(this);
             mySR.setRecognitionListener(new RecognitionListener() {
                 @Override
@@ -521,7 +502,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 @Override
                 public void onResults(Bundle results) {
                     List<String> res = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                    Log.d("", "onResults: "+res.get(0));
+                    Log.d("", "onResults: " + res.get(0));
                     processResult(res.get(0));
 
                 }
@@ -541,17 +522,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void processResult(String command) {
         command.toLowerCase();
-        Log.d("yop", "processResult: "+command);
-        if (command.contains("annulation") || command.contains("arrête") || command.contains("annule")){
-            while (myTTS.isSpeaking()){
+        Log.d("yop", "processResult: " + command);
+        if (command.contains("annulation") || command.contains("arrête") || command.contains("annule")) {
+            while (myTTS.isSpeaking()) {
             }
             speak("Bien ! Mode Navigation terminé.");
-            while (myTTS.isSpeaking()){
+            while (myTTS.isSpeaking()) {
             }
             startActivity(new Intent(MapsActivity.this, TrajectActivity.class));
-        }
-        else {
-            while (myTTS.isSpeaking()){
+        } else {
+            while (myTTS.isSpeaking()) {
 
             }
             speak("Désolé, je n'ai pas compris.");
@@ -669,7 +649,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
                     String[] adds = add.split(",");
                     instruc_lines = instruction.split("\\r?\\n");
-                    speak("Mode navigation activée. Trajet prêt. Distance estimée : "+distance+". Durée estimée : "+ duration+". "+"Vous êtes actuellement à"+ adds[0] + ". " + instruc_lines[0] );
+                    speak("Mode navigation activée. Trajet prêt. Distance estimée : " + distance + ". Durée estimée : " + duration + ". " + "Vous êtes actuellement à" + adds[0] + ". " + instruc_lines[0]);
                     save1 = true;
 
 
@@ -677,6 +657,47 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
             }
 
         });
+    }
+
+    private void setw() throws IOException {
+        bluetoothConnectDevice();
+    }
+
+    private void bluetoothConnectDevice() throws IOException {
+
+        try {
+            bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
+            pairedDevice = bluetoothAdapter.getBondedDevices();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+
+        bluetoothAdapter = BluetoothAdapter.getDefaultAdapter(); //get mobile bluetooth device
+        BluetoothDevice bd = bluetoothAdapter.getRemoteDevice(blue_address);//connect to the device
+        bluetoothSocket = bd.createInsecureRfcommSocketToServiceRecord(myUUID); //create a RFCOM (SPP) connexion
+        bluetoothSocket.connect();
+
+        /*
+        read data sended
+         */
+        InputStream inputStream = bluetoothSocket.getInputStream();
+        byte[] buffer = new byte[1024];
+        int bytes;
+        // Keep looping to listen for received messages
+
+        while (true) {
+            try {
+                bytes = inputStream.read(buffer);            //read bytes from input buffer
+                String readMessage = new String(buffer, 0, bytes);
+                // Send the obtained bytes to the UI Activity via handler
+                Log.d("logging", readMessage + "");
+                ((TextView) findViewById(R.id.svtv2)).setText(readMessage);
+            } catch (IOException e) {
+                break;
+            }
+        }
+
     }
 
 
@@ -751,7 +772,7 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 for (List<LatLng> list : start_end_latLngs) {
                     Log.d("L", list.get(0).toString() + " " + list.get(1).toString());
                     Double step_angle = angleFromCoordinate(list.get(0).latitude, list.get(0).longitude, list.get(1).latitude, list.get(1).longitude);
-                    Log.d("A ","step_angle "+step_angle);
+                    Log.d("A ", "step_angle " + step_angle);
                     steps_angle.add(step_angle);
                 }
 
@@ -759,8 +780,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 duration = directionsParser.getDuration();
                 current_step_angle = steps_angle.get(0);
                 save2 = true;
-                //initializeTextToSpeech();
-
 
             } catch (JSONException e) {
                 e.printStackTrace();

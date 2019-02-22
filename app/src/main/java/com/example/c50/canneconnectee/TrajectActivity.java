@@ -4,11 +4,14 @@ import android.Manifest;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.location.Address;
 import android.location.Geocoder;
 import android.location.Location;
+import android.location.LocationListener;
+import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.speech.RecognitionListener;
@@ -50,22 +53,24 @@ import java.util.UUID;
 
 public class TrajectActivity extends AppCompatActivity implements GoogleApiClient.OnConnectionFailedListener {
 
-    private PlaceAutocompleteAdapter placeAutocompleteAdapter;
-    private GoogleApiClient googleApiClient;
     private static final LatLngBounds LAT_LNG_BOUNDS = new LatLngBounds(new LatLng(-40, -168), new LatLng(71, 136));
-    private AutoCompleteTextView autoCompleteTextView;
     private static final String country = "France";
     private static final String FINE_LOCATION = Manifest.permission.ACCESS_FINE_LOCATION;
     private static final String COURSE_LOCATION = Manifest.permission.ACCESS_COARSE_LOCATION;
     private static final int LOCATION_PERMISSION_REQUEST_CODE = 1234;
+    private static final String city = "Le Mans";
+    private static final UUID myUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
+    private static LatLng latLng;
+    private static String dest_address;
+    private static Address address;
+    private static String cur_location;
+    private PlaceAutocompleteAdapter placeAutocompleteAdapter;
+    private GoogleApiClient googleApiClient;
+    private AutoCompleteTextView autoCompleteTextView;
     private Boolean mLocationPermissionsGranted = true;
     private TextToSpeech myTTS;
     private SpeechRecognizer mySR;
-    private static final String city = "Le Mans";
-    private static LatLng latLng;
-    private static String dest_address;
     private String dest_address_form;
-    private static final UUID myUUID = UUID.fromString("00001101-0000-1000-8000-00805F9B34FB");
     private BluetoothAdapter bluetoothAdapter = null;
     private BluetoothSocket bluetoothSocket = null;
     private Set<BluetoothDevice> pairedDevice;
@@ -75,8 +80,6 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private String blue_name = null;
     private ArrayList<String> joke_list;
     private ArrayList<String> proverb_list;
-    private static Address address;
-    private static String cur_location;
     private FusedLocationProviderClient mFusedLocationClient;
     private String blue_status;
 
@@ -96,7 +99,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         addProverb();
         dest_address = "";
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
-        blue_status = "La canne est non connectée.";
+        blue_status = "La canne n'est pas connectée.";
         try {
             setw();
         } catch (Exception e) {
@@ -117,9 +120,42 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
             }
         });
 
+        LocationManager locationManager = (LocationManager) this.getSystemService(Context.LOCATION_SERVICE);
+        if (ActivityCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED
+                && ActivityCompat.checkSelfPermission(this,
+                Manifest.permission.ACCESS_COARSE_LOCATION) !=
+                PackageManager.PERMISSION_GRANTED) {
+
+            return;
+
+        }
+
+        LocationListener locationListener = new LocationListener() {
+
+            @Override
+            public void onLocationChanged(Location location) {
+                getDeviceLoc();
+            }
+
+            @Override
+            public void onStatusChanged(String provider, int status, Bundle extras) {
+            }
+
+            @Override
+            public void onProviderEnabled(String provider) {
+            }
+
+            @Override
+            public void onProviderDisabled(String provider) {
+            }
+        };
+        locationManager.requestLocationUpdates(LocationManager.NETWORK_PROVIDER, 15000, 2, locationListener);
+
+
         initializeTextToSpeech();
 
-        initializeSpeechRecogniser(); 
+        initializeSpeechRecogniser();
 
         googleApiClient = new GoogleApiClient
                 .Builder(this)
@@ -131,14 +167,10 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         placeAutocompleteAdapter = new PlaceAutocompleteAdapter(this, googleApiClient, LAT_LNG_BOUNDS, null);
 
         autoCompleteTextView.setAdapter(placeAutocompleteAdapter);
-
-
-        //autoCompleteTextView.setText(dest_address);
-
     }
 
     private void initializeSpeechRecogniser() {
-        if(SpeechRecognizer.isRecognitionAvailable(this)){
+        if (SpeechRecognizer.isRecognitionAvailable(this)) {
             mySR = SpeechRecognizer.createSpeechRecognizer(this);
             mySR.setRecognitionListener(new RecognitionListener() {
                 @Override
@@ -174,7 +206,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                 @Override
                 public void onResults(Bundle results) {
                     List<String> res = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                    Log.d("", "onResults: "+res.get(0));
+                    Log.d("", "onResults: " + res.get(0));
                     processResult(res.get(0));
 
                 }
@@ -193,44 +225,39 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     }
 
     private void processResult(String command) {
-        Log.d("JENTRE", "processResult: "+command);
         command.toLowerCase();
         Date date = new Date();
-        if(command.contains("quel")){
-            Log.d("JENTRE", "Quel: ");
+        if (command.contains("quel")) {
             //Quel est ton nom?
-            if(command.contains("ton nom") || command.contains("votre nom")){
-                Log.d("JENTRE", "ton nom: ");
+            if (command.contains("ton nom") || command.contains("votre nom")) {
                 speak("Mon nom est Alice.");
             }
             //Quelle heure est-il?
-            if(command.contains("heure")){
+            if (command.contains("heure")) {
                 String time = DateUtils.formatDateTime(this, date.getTime(), DateUtils.FORMAT_SHOW_TIME);
-                speak("Il est "+time+".");
+                speak("Il est " + time + ".");
             }
             //Quelle est la date d'aujourd'hui?
-            if(command.contains("date")){
-                Log.d("", "JERENTREE ");
+            if (command.contains("date")) {
                 Calendar cal = Calendar.getInstance();
                 cal.setTime(date);
                 Integer day_of_month = cal.get(Calendar.DAY_OF_MONTH);
-                String[] days  = new String[] {"Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"};
-                Log.d("", "" + cal.get(Calendar.DAY_OF_WEEK));
+                String[] days = new String[]{"Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"};
                 String day = days[cal.get(Calendar.DAY_OF_WEEK) - 1];
-                String[] months = new String[] {"Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Decembre"};
+                String[] months = new String[]{"Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Decembre"};
                 String month = months[cal.get(Calendar.MONTH)];
                 Integer year = cal.get(Calendar.YEAR);
-                speak("La date d'aujourd'hui est "+day+" "+day_of_month+" "+month+" "+year+".");
+                speak("La date d'aujourd'hui est " + day + " " + day_of_month + " " + month + " " + year + ".");
             }
             //Quel age ton age?
-            if(command.contains("âge")){
+            if (command.contains("âge")) {
                 speak("J'ai 20 ans.");
             }
         }
 
-        if (command.contains("raconte")){
+        if (command.contains("raconte")) {
             //Raconte moi une blague
-            if (command.contains("blague")){
+            if (command.contains("blague")) {
                 int joke_lenght = joke_list.size();
                 int joke_num = new Random().nextInt(joke_lenght - 1);
                 speak(joke_list.get(joke_num));
@@ -243,43 +270,53 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
             }
         }
 
+        //Où suis-je?
+        if (command.contains("position")) {
+            speak("Vous êtes actuellement à " + cur_location);
+        }
+        if (command.contains("où suis-je") || command.contains("où je suis")) {
+            speak("Vous êtes actuellement à " + cur_location);
+        }
+
         //Destination
-        if (command.contains("destination")){
+        if (command.contains("destination")) {
 
             dest_address = command.substring(command.indexOf(" "));
             dest_address_form = dest_address + ", " + city + ", " + country;
 
             getDeviceLoc();
-
-            /*if (dest_address_form.contains(cur_location)){
+            String[] cur_locs = cur_location.split(",");
+            String cur_loc_format = cur_locs[0];
+            if (cur_loc_format.contains(dest_address)) {
                 speak("Vous êtes déjà à destination !");
-            }*/
+            } else {
+                autoCompleteTextView.postDelayed(new Runnable() {
+                    @Override
+                    public void run() {
+                        autoCompleteTextView.setText(dest_address_form);
+                        //autoCompleteTextView.showDropDown();
+                        getLocationPermission();
+                        if (mLocationPermissionsGranted) {
+                            //geolocate the destination
+                            geoLocate();
+                            //Send destination data
+                            Intent intent = new Intent(TrajectActivity.this, MapsActivity.class);
+                            intent.putExtra("latLng_dest", latLng);
+                            startActivity(intent);
+                        }
 
-            autoCompleteTextView.postDelayed(new Runnable() {
-                @Override
-                public void run() {
-                    autoCompleteTextView.setText(dest_address_form);
-                    //autoCompleteTextView.showDropDown();
-                    getLocationPermission();
-                    if (mLocationPermissionsGranted) {
-                        //geolocate the destination
-                        geoLocate();
-                        //Send destination data
-                        Intent intent = new Intent(TrajectActivity.this, MapsActivity.class);
-                        intent.putExtra("latLng_dest", latLng);
-                        startActivity(intent);
                     }
+                }, 10);
+                speak("En route vers " + dest_address);
+                while (myTTS.isSpeaking()) {
 
                 }
-            }, 10);
-            speak("En route vers " + dest_address);
-            while (myTTS.isSpeaking()){
-
             }
+
 
         }
 
-        if (command.contains("guide")){
+        if (command.contains("guide")) {
             speak("Bienvenue dans le manuel d'utilisation. L'objectif principal de cette application est de vous guider" +
                     " dans vos déplacements, en vous conduisant à un endroit souhaité tout en vous évitant les obstacles" +
                     " sur votre trajet. Dîtes Destination suivi de l'endroit où vous desiriez aller et le mode Navigation sera " +
@@ -300,7 +337,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         mySR.stopListening();
     }
 
-    private void getDeviceLoc(){
+    private void getDeviceLoc() {
 
         Log.d("", "ICI AU MOINS WTF ");
         try {
@@ -326,7 +363,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                     }
                 }
             });
-        }catch (SecurityException e) {
+        } catch (SecurityException e) {
 
             Log.e("", "getDeviceLocation: SecurityException: " + e.getMessage());
         }
@@ -352,16 +389,16 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
     }
 
-    private void initializeTextToSpeech(){
+    private void initializeTextToSpeech() {
         myTTS = new TextToSpeech(this, new TextToSpeech.OnInitListener() {
             @Override
             public void onInit(int status) {
-                if (myTTS.getEngines().size() == 0){
+                if (myTTS.getEngines().size() == 0) {
                     Toast.makeText(TrajectActivity.this, "There is no TTS engine on your device", Toast.LENGTH_LONG).show();
                     finish();
-                }else{
+                } else {
                     myTTS.setLanguage(Locale.FRANCE);
-                    speak("Bonjour ! Mon nom est Alice. \n"+blue_status +"\n Veillez appuyer pour parler.\n Pour obtenir de l'aide, dîtes Guide d'utilisation. ");
+                    speak("Bonjour ! Mon nom est Alice. \n" + blue_status + "\n Veillez appuyer pour parler.\n Pour obtenir de l'aide, dîtes Guide d'utilisation. ");
                 }
             }
         });
@@ -369,9 +406,9 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
 
 
     private void speak(String message) {
-        if (Build.VERSION.SDK_INT >= 21){
+        if (Build.VERSION.SDK_INT >= 21) {
             myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null, null);
-        }else{
+        } else {
             myTTS.speak(message, TextToSpeech.QUEUE_FLUSH, null);
         }
 
@@ -502,7 +539,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         read data sended
          */
         InputStream inputStream = bluetoothSocket.getInputStream();
-        byte[] buffer = new byte[256];
+        byte[] buffer = new byte[1024];
         int bytes;
         // Keep looping to listen for received messages
 

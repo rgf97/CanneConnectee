@@ -20,8 +20,8 @@ public class DirectionsParser {
      */
     private static String instruction = "";
     private static List<List<LatLng>> start_end_latLngs;
-    private  static String duration;
-    private  static String distance;
+    private static String duration;
+    private static String distance;
 
     public List<List<HashMap<String, String>>> parse(JSONObject jObject) {
 
@@ -148,11 +148,11 @@ public class DirectionsParser {
         return ll;
     }
 
-    public String getDuration(){
+    public String getDuration() {
         return duration;
     }
 
-    public String getDistance(){
+    public String getDistance() {
         return distance;
     }
 
