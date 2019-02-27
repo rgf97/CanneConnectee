@@ -25,6 +25,7 @@ import android.location.LocationManager;
 import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -119,10 +120,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
     private BluetoothSocket bluetoothSocket = null;
     private Set<BluetoothDevice> pairedDevice;
     private String blue_address = null;
+    final int handlerState = 0;
+    private Handler bluetoothIn;
+    private ConnectedThread mConnectedThread;
+    private String blue_name = null;
+    private String blue_status = "La canne n'est pas connecté";
 
 
     private GoogleApiClient mGoogleApiClient;
     private LocationListener mLocationListener;
+
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -148,6 +155,16 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 textView.setText(instruction);
             }
         });
+
+        bluetoothIn = new Handler() {
+            public void handleMessage(android.os.Message msg) {
+                if (msg.what == handlerState) {
+                    byte[] readBuff = (byte[]) msg.obj;
+                    String readMessage = new String(readBuff, 0, msg.arg1);
+                    speak("Obstacle à gauche");
+                }
+            }
+        };
 
         FloatingActionButton fab = findViewById(R.id.fab2);
         fab.setOnClickListener(new View.OnClickListener() {
@@ -212,6 +229,12 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                             speak("Vous êtes arrivé ! Je rappelle, vous êtes arrivé ! Mode Navigation terminé.");
                             while (myTTS.isSpeaking()) {
                             }
+                            try {
+                                bluetoothSocket.close();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+
                             startActivity(new Intent(MapsActivity.this, TrajectActivity.class));
 
                         }
@@ -661,6 +684,8 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
 
     private void setw() throws IOException {
         bluetoothConnectDevice();
+        mConnectedThread = new ConnectedThread(bluetoothSocket);
+        mConnectedThread.start();
     }
 
     private void bluetoothConnectDevice() throws IOException {
@@ -668,6 +693,17 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         try {
             bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
             pairedDevice = bluetoothAdapter.getBondedDevices();
+            if (pairedDevice.size() > 0) {
+                for (BluetoothDevice bt : pairedDevice) {
+                    blue_address = bt.getAddress();
+                    blue_name = bt.getName();
+                    Toast.makeText(getApplicationContext(), "Cane connected", Toast.LENGTH_SHORT).show();
+                    blue_status = "La canne est connectée !";
+                    ((TextView) findViewById(R.id.svtv2)).setText("Name : " + blue_name + "Address : " + blue_address);
+
+                }
+            }
+            Toast.makeText(getApplicationContext(), "Cane connected", Toast.LENGTH_SHORT).show();
 
         } catch (Exception e) {
             e.printStackTrace();
@@ -677,26 +713,6 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
         BluetoothDevice bd = bluetoothAdapter.getRemoteDevice(blue_address);//connect to the device
         bluetoothSocket = bd.createInsecureRfcommSocketToServiceRecord(myUUID); //create a RFCOM (SPP) connexion
         bluetoothSocket.connect();
-
-        /*
-        read data sended
-         */
-        InputStream inputStream = bluetoothSocket.getInputStream();
-        byte[] buffer = new byte[1024];
-        int bytes;
-        // Keep looping to listen for received messages
-
-        while (true) {
-            try {
-                bytes = inputStream.read(buffer);            //read bytes from input buffer
-                String readMessage = new String(buffer, 0, bytes);
-                // Send the obtained bytes to the UI Activity via handler
-                Log.d("logging", readMessage + "");
-                ((TextView) findViewById(R.id.svtv2)).setText(readMessage);
-            } catch (IOException e) {
-                break;
-            }
-        }
 
     }
 
@@ -817,5 +833,42 @@ public class MapsActivity extends FragmentActivity implements OnMapReadyCallback
                 Toast.makeText(getApplicationContext(), "Direction not found!", Toast.LENGTH_SHORT);
             }
         }
+    }
+
+    private class ConnectedThread extends Thread {
+        private final InputStream mmInStream;
+
+        //creation of the connect thread
+        public ConnectedThread(BluetoothSocket socket) {
+            InputStream tmpIn = null;
+
+            try {
+                //Create I/O streams for connection
+                tmpIn = socket.getInputStream();
+            } catch (IOException e) {
+            }
+
+            mmInStream = tmpIn;
+        }
+
+
+        public void run() {
+            byte[] buffer = new byte[8];
+            int bytes;
+            while (true) {
+                try {
+                    if (mmInStream.available() > 0) {
+                        bytes = mmInStream.read(buffer);//read bytes from input buffer
+                        bluetoothIn.obtainMessage(handlerState, bytes, -1, buffer).sendToTarget();
+                    } else {
+
+                    }
+
+                } catch (IOException e) {
+                    break;
+                }
+            }
+        }
+
     }
 }

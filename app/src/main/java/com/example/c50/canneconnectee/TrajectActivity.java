@@ -14,6 +14,7 @@ import android.location.LocationListener;
 import android.location.LocationManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
@@ -82,11 +83,23 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
     private ArrayList<String> proverb_list;
     private FusedLocationProviderClient mFusedLocationClient;
     private String blue_status;
-
+    final int handlerState = 0;
+    private volatile boolean stopWorker;
+    private InputStream inputStream;
+    private Handler bluetoothIn;
+    private StringBuilder sb = new StringBuilder();
+    private ConnectedThread mConnectedThread;
 
     @Override
     public void onConnectionFailed(@NonNull ConnectionResult connectionResult) {
 
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        //do something
     }
 
     @Override
@@ -100,11 +113,43 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         dest_address = "";
         mFusedLocationClient = LocationServices.getFusedLocationProviderClient(this);
         blue_status = "La canne n'est pas connectée.";
+
         try {
             setw();
         } catch (Exception e) {
             e.printStackTrace();
         }
+
+        bluetoothIn = new Handler() {
+            public void handleMessage(android.os.Message msg) {
+                if (msg.what == handlerState) {
+                    byte[] readBuff = (byte[]) msg.obj;
+                    String print = "";
+                    for (int i = 0; i < readBuff.length; i++) {
+                        print += " " + readBuff[i];
+                    }
+                    String readMessage = new String(readBuff, 0, msg.arg1);
+
+                    blue_tv2.setText("Data Received = " + readMessage + "\n" + "Data Length = " + readMessage.length());
+
+                    speak("Obstacle détecté");
+                    /*if(readMessage.length() == 6){
+                        speak("Obstacle à gauche");
+                        Log.d("", "handleMessage: Obstacle à gauche");
+                    }
+                    if(readMessage.length() == 1) {
+                        speak("Obstacle à droite");
+                        Log.d("", "handleMessage: Obstacle à gauche");
+                    }
+                    if(readMessage.length() == 2) {
+                        speak("Obstacle devant");
+                        Log.d("", "handleMessage: Obstacle à gauche");
+                    }*/
+
+                }
+            }
+        };
+
 
 
         FloatingActionButton fab = findViewById(R.id.fab);
@@ -169,6 +214,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         autoCompleteTextView.setAdapter(placeAutocompleteAdapter);
     }
 
+
     private void initializeSpeechRecogniser() {
         if (SpeechRecognizer.isRecognitionAvailable(this)) {
             mySR = SpeechRecognizer.createSpeechRecognizer(this);
@@ -223,6 +269,7 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
             });
         }
     }
+
 
     private void processResult(String command) {
         command.toLowerCase();
@@ -300,6 +347,12 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
                             //geolocate the destination
                             geoLocate();
                             //Send destination data
+                            try {
+                                bluetoothSocket.close();
+                            } catch (Exception e) {
+                                e.printStackTrace();
+                            }
+
                             Intent intent = new Intent(TrajectActivity.this, MapsActivity.class);
                             intent.putExtra("latLng_dest", latLng);
                             startActivity(intent);
@@ -335,17 +388,21 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         super.onPause();
         myTTS.shutdown();
         mySR.stopListening();
+        /*try {
+            bluetoothSocket.close();
+        }catch (Exception e){
+            e.printStackTrace();
+        }*/
+
     }
 
     private void getDeviceLoc() {
 
-        Log.d("", "ICI AU MOINS WTF ");
         try {
             mFusedLocationClient.getLastLocation().addOnSuccessListener(this, new OnSuccessListener<Location>() {
                 @Override
                 public void onSuccess(Location location) {
                     // Got last known location. In some rare situations this can be null.
-                    Log.d("Z", "JE RENTRE ICI KM");
                     if (location != null) {
 
                         Geocoder geocoder = new Geocoder(TrajectActivity.this, Locale.getDefault());
@@ -504,8 +561,10 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         blue_tv = findViewById(R.id.blue_tv);
         blue_tv2 = findViewById(R.id.blue_tv2);
         bluetoothConnectDevice();
-
+        mConnectedThread = new ConnectedThread(bluetoothSocket);
+        mConnectedThread.start();
     }
+
 
     private void bluetoothConnectDevice() throws IOException {
 
@@ -535,26 +594,48 @@ public class TrajectActivity extends AppCompatActivity implements GoogleApiClien
         } catch (Exception e) {
         }
 
-        /*
-        read data sended
-         */
-        InputStream inputStream = bluetoothSocket.getInputStream();
-        byte[] buffer = new byte[1024];
-        int bytes;
-        // Keep looping to listen for received messages
 
-        while (true) {
+    }
+
+    //create new class for connect thread
+    private class ConnectedThread extends Thread {
+        private final InputStream mmInStream;
+
+        //creation of the connect thread
+        public ConnectedThread(BluetoothSocket socket) {
+            InputStream tmpIn = null;
+
             try {
-                bytes = inputStream.read(buffer);            //read bytes from input buffer
-                String readMessage = new String(buffer, 0, bytes);
-                // Send the obtained bytes to the UI Activity via handler
-                Log.d("logging", readMessage + "");
-                blue_tv2.setText(readMessage);
+                //Create I/O streams for connection
+                tmpIn = socket.getInputStream();
             } catch (IOException e) {
-                break;
+            }
+
+            mmInStream = tmpIn;
+        }
+
+
+        public void run() {
+            byte[] buffer = new byte[8];
+            int bytes;
+            while (true) {
+                try {
+                    if (mmInStream.available() > 0) {
+                        bytes = mmInStream.read(buffer);//read bytes from input buffer
+                        bluetoothIn.obtainMessage(handlerState, bytes, -1, buffer).sendToTarget();
+                    } else {
+
+                    }
+
+
+                } catch (IOException e) {
+                    break;
+                }
             }
         }
 
     }
 
 }
+
+
